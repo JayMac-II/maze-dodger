@@ -667,9 +667,10 @@ const LEVELS = [
     // the arc blade: top-left quarter sweep from the L-wall top to the right wall's
     // face — the only door to the exit. Speeds scale with radius so all three move
     // in angular lockstep: one blade, one pattern.
-    { type:'arc', cx:14.0, cy:10.0, radius:0.9, a0:3.1416, a1:4.3633, speed:48, phase:0.00 },
-    { type:'arc', cx:14.0, cy:10.0, radius:1.3, a0:3.1416, a1:4.3633, speed:69, phase:0.00 },
-    { type:'arc', cx:14.0, cy:10.0, radius:1.7, a0:3.1416, a1:4.3633, speed:90, phase:0.00 },
+    // speeds are exactly radius × 18 — perfect lockstep at a slow 0.45 rad/s
+    { type:'arc', cx:14.0, cy:10.0, radius:0.9, a0:3.1416, a1:4.3633, speed:16.2, phase:0.00 },
+    { type:'arc', cx:14.0, cy:10.0, radius:1.3, a0:3.1416, a1:4.3633, speed:23.4, phase:0.00 },
+    { type:'arc', cx:14.0, cy:10.0, radius:1.7, a0:3.1416, a1:4.3633, speed:30.6, phase:0.00 },
     // the sleepers: wake when the key is grabbed, then never stop
     { type:'chaser', x:16, y:11, keyActivated:true, speed:100 },
     { type:'chaser', x:17, y:11, keyActivated:true, speed:100 },
@@ -889,7 +890,8 @@ function initLevel(idx) {
   const mult = enemySpeedMult();
   game.enemies = lvl.enemies.map(spec => {
     const e = Object.assign({}, spec);
-    e.speed = Math.min(spec.speed * mult, MAX_ENEMY_SPEED);
+    e.speed = spec.speed * mult;
+    if (e.type !== 'arc') e.speed = Math.min(e.speed, MAX_ENEMY_SPEED);
     e.r = spec.r || ENEMY_RADIUS;
     if (e.pts) e.path = buildPath(e.pts);
     if (e.type === 'bounce') {
@@ -905,6 +907,17 @@ function initLevel(idx) {
     }
     return e;
   });
+  // Arc blades: cap concentric arcs as a GROUP. Capping only the fastest ring
+  // would break their radius-proportional speeds and shear the blade into a fan.
+  const arcGroups = {};
+  for (const e of game.enemies) if (e.type === 'arc') {
+    const k = `${e.cx},${e.cy}`;
+    (arcGroups[k] = arcGroups[k] || []).push(e);
+  }
+  for (const k in arcGroups) {
+    const f = Math.min(1, MAX_ENEMY_SPEED / Math.max(...arcGroups[k].map(e => e.speed)));
+    for (const e of arcGroups[k]) e.speed *= f;
+  }
   resetRun();
   updateHud();
 }
