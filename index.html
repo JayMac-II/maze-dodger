@@ -170,6 +170,8 @@
     <div>Touch an enemy and you're reset to the start of the room. The enemies reset too — their patterns are the same every attempt, so every death teaches you something.</div>
     <div>Each room's enemies move differently: some pace back and forth, some orbit, some follow the corridors, some ricochet around.</div>
     <div><span class="kbd">Esc</span> pauses. <span class="kbd">R</span> restarts the room. Progress saves automatically.</div>
+    <div>Some exits are <b>locked</b> — grab every glowing key space in the room first, then the exit opens. Dying re-locks everything.</div>
+    <div><b>Watcher</b> enemies (the ones with an eye) charge when they can see you. Break their line of sight behind a wall and they give up and head home.</div>
     <div>Feeling confident? The <b>You Won't</b> and <b>You Can't</b> difficulties send you back to Room 1 on every death — and in You Can't, the walls kill you too.</div>
     <button id="btnHowToBack" style="margin-top:6px">Back</button>
   </div>
@@ -231,25 +233,25 @@ const THEMES = {
     bg:'#b8c0ee', panel:'#f0f2ff', text:'#1d2a6e', btn:'#2b3a8f', btnText:'#fff',
     floorA:'#e8ebfa', floorB:'#dfe3f7', wall:'#2b3a8f', wallEdge:'#1c2870',
     player:'#e23333', enemy:'#2f4ff0', enemyCore:'#ffffff',
-    exit:'#5ecb72', start:'#c9cff2', overlayText:'#ffffff'
+    exit:'#5ecb72', start:'#c9cff2', overlayText:'#ffffff', key:'#f0b429'
   },
   neon: {
     bg:'#0b0e1a', panel:'#161b2e', text:'#c8e6ff', btn:'#00b3c8', btnText:'#03121a',
     floorA:'#141a30', floorB:'#101527', wall:'#2a3455', wallEdge:'#1a2138',
     player:'#00e5ff', enemy:'#ff2fa0', enemyCore:'#2a0a1e',
-    exit:'#3dffa0', start:'#1d2745', overlayText:'#c8e6ff'
+    exit:'#3dffa0', start:'#1d2745', overlayText:'#c8e6ff', key:'#ffd84d'
   },
   forest: {
     bg:'#22331f', panel:'#e9efdc', text:'#25391f', btn:'#4a6b3a', btnText:'#fff',
     floorA:'#d9e4c4', floorB:'#cfdcb8', wall:'#4a6b3a', wallEdge:'#37522a',
     player:'#d9772e', enemy:'#5b3a8f', enemyCore:'#efe6ff',
-    exit:'#8fd977', start:'#c2d1a6', overlayText:'#f3f7e9'
+    exit:'#8fd977', start:'#c2d1a6', overlayText:'#f3f7e9', key:'#e8c547'
   },
   sunset: {
     bg:'#3b1f3e', panel:'#ffe9d6', text:'#4a2547', btn:'#c9484f', btnText:'#fff',
     floorA:'#ffdfc2', floorB:'#f9d3b0', wall:'#7c3558', wallEdge:'#5e2543',
     player:'#3b6fd9', enemy:'#e0483e', enemyCore:'#ffe9d6',
-    exit:'#ffc94d', start:'#efc8a4', overlayText:'#ffe9d6'
+    exit:'#ffc94d', start:'#efc8a4', overlayText:'#ffe9d6', key:'#7ce0d6'
   }
 };
 
@@ -469,6 +471,7 @@ const LEVELS = [
 },
 {
   name: 'The Gauntlet',
+  rampIndex: 6, // speed-locked to its original slot — playtesting proved faster = luck, not skill
   grid: [
     '#####################',
     '#S..................#',
@@ -536,6 +539,95 @@ const LEVELS = [
     { type:'patrol', pts:[[15.0,1.5],[15.0,11.5]], speed:115, phase:0.65 },
     { type:'loop', pts:[[12,2],[18.5,2],[18.5,10.5],[12,10.5]], speed:135, phase:0.50 }
   ]
+},
+{
+  // Level design by Jay. Teaches the key mechanic: 'K' must be touched to unlock 'E'.
+  // The key sits at the far end of a vertical serpentine; the exit is right below
+  // the spawn — so the whole room is run twice, once out and once back.
+  name: 'Lock & Key',
+  grid: [
+    '#####################',
+    '#S.....#......#.....#',
+    '#####..#......#.....#',
+    '#E.....#...#..#..#..#',
+    '#......#...#..#..#..#',
+    '#......#...#..#..#..#',
+    '#......#...#..#..#..#',
+    '#......#...#..#..#..#',
+    '#......#...#..#..#..#',
+    '#......#...#..#..#..#',
+    '#..........#.....#..#',
+    '#..........#.....#.K#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'patrol', pts:[[5.5,1.5],[5.5,11.3]],   speed:100, phase:0.50 }, // passage sentry
+    { type:'patrol', pts:[[7.5,10.4],[7.5,11.5]],  speed:60,  phase:0.00 }, // gap guard 1
+    { type:'bounce', x:9.5, y:5.0, dir:[0.12,1.0], speed:150 },             // corridor pinball
+    { type:'patrol', pts:[[11.5,1.5],[11.5,2.6]],  speed:60,  phase:0.50 }, // gap guard 2
+    { type:'patrol', pts:[[14.5,10.4],[14.5,11.5]],speed:60,  phase:0.25 }, // gap guard 3
+    { type:'patrol', pts:[[17.5,1.5],[17.5,2.6]],  speed:60,  phase:0.75 }, // gap guard 4
+    // lower-left room: two loops circling counterclockwise, corner cut at the exit
+    { type:'loop', pts:[[3.4,3.4],[1.4,5.3],[1.4,10.8],[5.0,10.8],[5.0,3.4]], speed:110, phase:0.00 },
+    { type:'loop', pts:[[3.4,3.4],[1.4,5.3],[1.4,10.8],[5.0,10.8],[5.0,3.4]], speed:110, phase:0.50 }
+  ]
+},
+{
+  // Reinforces keys: TWO keys in opposite quadrants, exit in a third. Full circuit
+  // of the room required: SW spawn → NW key → NE → SE key → back to NE exit.
+  name: 'Double Lock',
+  grid: [
+    '#####################',
+    '#K........#........E#',
+    '#.........#.........#',
+    '#...................#',
+    '#...................#',
+    '#.........#.........#',
+    '###..###########..###',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#...................#',
+    '#...................#',
+    '#S........#........K#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'circle', cx:5, cy:9, radius:1.7, speed:125, dir: 1, angle:0 },          // SW
+    { type:'patrol', pts:[[3.3,6.5],[4.7,6.5]],   speed:60,  phase:0.00 },          // door SW↔NW
+    { type:'patrol', pts:[[1.5,3.0],[8.5,3.0]],   speed:115, phase:0.30 },          // NW
+    { type:'patrol', pts:[[7.5,1.5],[7.5,5.4]],   speed:110, phase:0.70 },          // NW
+    { type:'patrol', pts:[[10.5,3.3],[10.5,4.7]], speed:60,  phase:0.50 },          // door NW↔NE
+    { type:'bounce', x:15.0, y:3.0, dir:[1.0,0.8],speed:150 },                      // NE
+    { type:'patrol', pts:[[11.5,4.5],[18.5,4.5]], speed:110, phase:0.20 },          // NE
+    { type:'loop', pts:[[11.5,7.5],[17.5,7.5],[17.5,10.5],[11.5,10.5]], speed:125, phase:0.00 }, // SE
+    { type:'loop', pts:[[11.5,7.5],[17.5,7.5],[17.5,10.5],[11.5,10.5]], speed:125, phase:0.50 }  // SE
+  ]
+},
+{
+  // Introduces chasers at their gentlest: they charge on line of sight, give up when
+  // you break it behind a pillar, and walk home. Pillars are cover — use them.
+  name: 'Watchdogs',
+  grid: [
+    '#####################',
+    '#...................#',
+    '#...................#',
+    '#..##....##....##...#',
+    '#...................#',
+    '#...................#',
+    '#S....##......##...E#',
+    '#...................#',
+    '#...................#',
+    '#..##....##....##...#',
+    '#...................#',
+    '#...................#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'chaser', x:5,  y:2,  sight:5.5, speed:115 },
+    { type:'chaser', x:10, y:8,  sight:5.5, speed:115 },
+    { type:'chaser', x:16, y:5,  sight:5.5, speed:115 },
+    { type:'patrol', pts:[[18.0,2.0],[18.0,10.5]], speed:105, phase:0.50 }
+  ]
 }
 ];
 
@@ -590,16 +682,20 @@ const BEHAVIORS = {
 /* ============================================================
    5. ENGINE — grid queries and collision
    ============================================================ */
-let grid = [], startPos = { x: 0, y: 0 }, exitTiles = [];
+let grid = [], startPos = { x: 0, y: 0 }, exitTiles = [], keyTiles = [];
 
 function loadGrid(level) {
   grid = level.grid;
-  exitTiles = [];
+  exitTiles = []; keyTiles = [];
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const ch = grid[r][c];
     if (ch === 'S') startPos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE };
     if (ch === 'E') exitTiles.push({ c, r });
+    if (ch === 'K') keyTiles.push({ c, r }); // key space: all must be touched to unlock the exit
   }
+}
+function exitUnlocked() {
+  return keyTiles.length === 0 || game.keysGot.size >= keyTiles.length;
 }
 function isWall(c, r) {
   if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return true;
@@ -661,11 +757,15 @@ const game = {
   stateTimer: 0,
   player: { x: 0, y: 0 },
   enemies: [],
+  keysGot: new Set(),
   paused: false
 };
 
 function enemySpeedMult() {
-  return DIFFICULTY_MULT[settings.difficulty] * Math.pow(RAMP_FACTOR[settings.ramp], game.levelIndex);
+  // Levels can pin their speed with rampIndex (e.g. The Gauntlet stays at its
+  // original slot-7 speed no matter where it sits in the order).
+  const idx = LEVELS[game.levelIndex].rampIndex ?? game.levelIndex;
+  return DIFFICULTY_MULT[settings.difficulty] * Math.pow(RAMP_FACTOR[settings.ramp], idx);
 }
 // Hardcore modes: death sends you back to Room 1. 'youcant' also makes walls lethal.
 function isHardcore()  { return settings.difficulty === 'youwont' || settings.difficulty === 'youcant'; }
@@ -697,6 +797,11 @@ function initLevel(idx) {
       e.px = e.x * TILE; e.py = e.y * TILE;
       e.startPx = e.px; e.startPy = e.py; e.startVx = e.vx; e.startVy = e.vy;
     }
+    if (e.type === 'chaser') {
+      e.hx = e.x * TILE; e.hy = e.y * TILE;   // home post
+      e.px = e.hx; e.py = e.hy;
+      e.chasing = false;
+    }
     return e;
   });
   resetRun();
@@ -705,8 +810,10 @@ function initLevel(idx) {
 function resetRun() {
   game.player.x = startPos.x; game.player.y = startPos.y;
   game.levelTime = 0;
+  game.keysGot = new Set(); // death re-locks the exit — keys must be re-earned
   for (const e of game.enemies) {
     if (e.type === 'bounce') { e.px = e.startPx; e.py = e.startPy; e.vx = e.startVx; e.vy = e.startVy; }
+    if (e.type === 'chaser') { e.px = e.hx; e.py = e.hy; e.chasing = false; }
   }
   game.state = 'ready';
 }
@@ -719,8 +826,35 @@ function stepBounce(e, dt) {
   if (circleHitsWall(e.px, ny, e.r)) { e.vy = -e.vy; ny = e.py + e.vy * dt; }
   e.py = ny;
 }
+// Chaser: sits at its home post. If it has line of sight to the player within its
+// sight range, it charges; break line of sight (or outrange it) and it heads home.
+function hasLOS(x1, y1, x2, y2) {
+  const d = Math.hypot(x2 - x1, y2 - y1);
+  const steps = Math.max(1, Math.ceil(d / 10));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (isWall(Math.floor((x1 + (x2 - x1) * t) / TILE),
+               Math.floor((y1 + (y2 - y1) * t) / TILE))) return false;
+  }
+  return true;
+}
+function stepChaser(e, dt) {
+  const px = game.player.x, py = game.player.y;
+  const dist = Math.hypot(px - e.px, py - e.py);
+  e.chasing = dist < (e.sight || 5.5) * TILE && hasLOS(e.px, e.py, px, py);
+  const tx = e.chasing ? px : e.hx, ty = e.chasing ? py : e.hy;
+  const sp = e.chasing ? e.speed : e.speed * 0.6;
+  const dd = Math.hypot(tx - e.px, ty - e.py);
+  if (dd < 2) return;
+  let nx = e.px + (tx - e.px) / dd * sp * dt;
+  if (circleHitsWall(nx, e.py, e.r)) nx = e.px;
+  e.px = nx;
+  let ny = e.py + (ty - e.py) / dd * sp * dt;
+  if (circleHitsWall(e.px, ny, e.r)) ny = e.py;
+  e.py = ny;
+}
 function enemyPos(e) {
-  if (e.type === 'bounce') return { x: e.px, y: e.py };
+  if (e.type === 'bounce' || e.type === 'chaser') return { x: e.px, y: e.py };
   return BEHAVIORS[e.type](e, game.levelTime);
 }
 
@@ -758,7 +892,10 @@ function update(dt) {
   }
 
   // enemies
-  for (const e of game.enemies) if (e.type === 'bounce') stepBounce(e, dt);
+  for (const e of game.enemies) {
+    if (e.type === 'bounce') stepBounce(e, dt);
+    if (e.type === 'chaser') stepChaser(e, dt);
+  }
 
   // collisions
   const half = PLAYER_SIZE / 2;
@@ -767,11 +904,16 @@ function update(dt) {
     if (circleHitsSquare(p.x, p.y, e.r, game.player.x, game.player.y, half)) { die(); return; }
   }
 
-  // exit check
+  // key pickup + exit check
   const pc = Math.floor(game.player.x / TILE), pr = Math.floor(game.player.y / TILE);
-  for (const t of exitTiles) {
-    if (t.c === pc && t.r === pr) {
-      game.state = 'complete'; game.stateTimer = COMPLETE_PAUSE; return;
+  for (const t of keyTiles) {
+    if (t.c === pc && t.r === pr) game.keysGot.add(`${t.c},${t.r}`);
+  }
+  if (exitUnlocked()) {
+    for (const t of exitTiles) {
+      if (t.c === pc && t.r === pr) {
+        game.state = 'complete'; game.stateTimer = COMPLETE_PAUSE; return;
+      }
     }
   }
 }
@@ -819,16 +961,41 @@ function draw() {
   const sc = Math.floor(startPos.x / TILE), sr = Math.floor(startPos.y / TILE);
   ctx.fillStyle = T.start;
   ctx.fillRect(sc * TILE + 3, sr * TILE + 3, TILE - 6, TILE - 6);
-  // exit tiles (pulse)
+  // key tiles (pulsing diamond until collected)
   const pulse = 0.65 + 0.35 * Math.sin(performance.now() / 250);
-  for (const t of exitTiles) {
-    ctx.globalAlpha = pulse;
-    ctx.fillStyle = T.exit;
-    ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+  for (const t of keyTiles) {
+    if (game.keysGot.has(`${t.c},${t.r}`)) continue;
+    const kx = (t.c + 0.5) * TILE, ky = (t.r + 0.5) * TILE, s = 11 + 2 * pulse;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = T.key;
+    ctx.fillRect(t.c * TILE + 3, t.r * TILE + 3, TILE - 6, TILE - 6);
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = T.exit;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+    ctx.beginPath();
+    ctx.moveTo(kx, ky - s); ctx.lineTo(kx + s, ky); ctx.lineTo(kx, ky + s); ctx.lineTo(kx - s, ky);
+    ctx.closePath();
+    ctx.fillStyle = T.key;
+    ctx.fill();
+  }
+  // exit tiles (locked = grey with a padlock; unlocked = pulsing)
+  const unlocked = exitUnlocked();
+  for (const t of exitTiles) {
+    if (unlocked) {
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = T.exit;
+      ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = T.exit;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+    } else {
+      ctx.fillStyle = '#8b8f9c';
+      ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+      const lx = (t.c + 0.5) * TILE, ly = (t.r + 0.5) * TILE;
+      ctx.strokeStyle = '#3c3f4a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(lx, ly - 3, 6, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = '#3c3f4a';
+      ctx.fillRect(lx - 8, ly - 3, 16, 12);
+    }
   }
   // enemies
   for (const e of game.enemies) {
@@ -845,6 +1012,22 @@ function draw() {
     ctx.arc(p.x, p.y, e.r * 0.42, 0, Math.PI * 2);
     ctx.fillStyle = T.enemyCore;
     ctx.fill();
+    if (e.type === 'chaser') {
+      // pupil looks toward the player; alert ring while charging
+      const a = Math.atan2(game.player.y - p.y, game.player.x - p.x);
+      ctx.beginPath();
+      ctx.arc(p.x + Math.cos(a) * e.r * 0.35, p.y + Math.sin(a) * e.r * 0.35, e.r * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fill();
+      if (e.chasing) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, e.r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = T.enemy; ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 90);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
   }
   // player
   const half = PLAYER_SIZE / 2;
@@ -870,7 +1053,11 @@ function draw() {
 
   // state overlays
   if (game.state === 'ready') {
-    overlay(`ROOM ${game.levelIndex + 1}: ${LEVELS[game.levelIndex].name.toUpperCase()}`, 'Press any movement key to go');
+    const nk = keyTiles.length;
+    const sub = nk === 0 ? 'Press any movement key to go'
+      : nk === 1 ? 'The exit is locked — grab the key first'
+      : `The exit is locked — collect all ${nk} keys`;
+    overlay(`ROOM ${game.levelIndex + 1}: ${LEVELS[game.levelIndex].name.toUpperCase()}`, sub);
   } else if (game.state === 'dead') {
     ctx.fillStyle = 'rgba(200,30,30,0.35)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
