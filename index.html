@@ -431,17 +431,21 @@ const LEVELS = [
     '#####################'
   ],
   enemies: [
-    // Patrols stop ~2.5 tiles short of each lane's ends: safe pockets to wait in.
-    { type:'patrol', pts:[[5.0,1.5],[15.5,1.5]],  speed:95,  phase:0.50 },
-    { type:'patrol', pts:[[3.5,3.5],[17.5,3.5]],  speed:100, phase:0.15 },
-    { type:'patrol', pts:[[3.5,3.5],[17.5,3.5]],  speed:100, phase:0.65 },
-    { type:'patrol', pts:[[3.5,5.5],[17.5,5.5]],  speed:100, phase:0.40 },
-    { type:'patrol', pts:[[3.5,5.5],[17.5,5.5]],  speed:100, phase:0.90 },
-    { type:'patrol', pts:[[3.5,7.5],[17.5,7.5]],  speed:100, phase:0.10 },
-    { type:'patrol', pts:[[3.5,7.5],[17.5,7.5]],  speed:100, phase:0.60 },
-    { type:'patrol', pts:[[3.5,9.5],[17.5,9.5]],  speed:100, phase:0.35 },
-    { type:'patrol', pts:[[3.5,9.5],[17.5,9.5]],  speed:100, phase:0.85 },
-    { type:'patrol', pts:[[3.5,11.5],[16.0,11.5]],speed:95,  phase:0.50 }
+    // DESIGN RULE: a 1-tile lane (40px) can hold at most ONE ping-pong enemy.
+    // Player (24px) + enemy (18px) = 42px, so passing is geometrically impossible;
+    // two opposite-phase enemies close like scissors and the lane becomes unwinnable
+    // at ANY speed. One sweeper per lane; difficulty comes from the doorway guards.
+    { type:'patrol', pts:[[5.0,1.5],[15.5,1.5]],   speed:105, phase:0.50 }, // lane 1 sweeper
+    { type:'patrol', pts:[[17.6,2.5],[19.4,2.5]],  speed:60,  phase:0.00 }, // doorway 1→3 guard
+    { type:'patrol', pts:[[3.5,3.5],[17.5,3.5]],   speed:110, phase:0.30 }, // lane 3 sweeper
+    { type:'patrol', pts:[[1.6,4.5],[3.4,4.5]],    speed:60,  phase:0.50 }, // doorway 3→5 guard
+    { type:'patrol', pts:[[3.5,5.5],[17.5,5.5]],   speed:110, phase:0.75 }, // lane 5 sweeper
+    { type:'patrol', pts:[[17.6,6.5],[19.4,6.5]],  speed:60,  phase:0.25 }, // doorway 5→7 guard
+    { type:'patrol', pts:[[3.5,7.5],[17.5,7.5]],   speed:110, phase:0.10 }, // lane 7 sweeper
+    { type:'patrol', pts:[[1.6,8.5],[3.4,8.5]],    speed:60,  phase:0.75 }, // doorway 7→9 guard
+    { type:'patrol', pts:[[3.5,9.5],[17.5,9.5]],   speed:110, phase:0.55 }, // lane 9 sweeper
+    { type:'patrol', pts:[[17.6,10.5],[19.4,10.5]],speed:60,  phase:0.50 }, // doorway 9→11 guard
+    { type:'patrol', pts:[[3.5,11.5],[16.0,11.5]], speed:105, phase:0.40 }  // lane 11 sweeper
   ]
 }
 ];
