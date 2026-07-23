@@ -431,21 +431,107 @@ const LEVELS = [
     '#####################'
   ],
   enemies: [
-    // DESIGN RULE: a 1-tile lane (40px) can hold at most ONE ping-pong enemy.
-    // Player (24px) + enemy (18px) = 42px, so passing is geometrically impossible;
-    // two opposite-phase enemies close like scissors and the lane becomes unwinnable
-    // at ANY speed. One sweeper per lane; difficulty comes from the doorway guards.
-    { type:'patrol', pts:[[5.0,1.5],[15.5,1.5]],   speed:105, phase:0.50 }, // lane 1 sweeper
+    // DESIGN RULES for 1-tile lanes (learned the hard way):
+    // 1. Max ONE ping-pong enemy per lane — player (24px) + enemy (18px) = 42px > 40px
+    //    lane, so passing in-lane is geometrically impossible at any speed.
+    // 2. The sweeper's patrol MUST extend INTO the exit doorway's columns. The player
+    //    can never get past a sweeper's turnaround point from behind — the only escape
+    //    is ducking sideways through a doorway while trailing it. If the sweeper stops
+    //    short of the doorway, the lane is unwinnable.
+    // 3. The sweeper must stop SHORT of the entry doorway, leaving a safe landing pocket.
+    // 4. No sweeper may cover the exit tile itself (lane 11 has none for this reason).
+    { type:'patrol', pts:[[5.0,1.5],[19.0,1.5]],   speed:105, phase:0.50 }, // lane 1 sweeper → right door
     { type:'patrol', pts:[[17.6,2.5],[19.4,2.5]],  speed:60,  phase:0.00 }, // doorway 1→3 guard
-    { type:'patrol', pts:[[3.5,3.5],[17.5,3.5]],   speed:110, phase:0.30 }, // lane 3 sweeper
+    { type:'patrol', pts:[[2.0,3.5],[17.5,3.5]],   speed:110, phase:0.30 }, // lane 3 sweeper → left door
     { type:'patrol', pts:[[1.6,4.5],[3.4,4.5]],    speed:60,  phase:0.50 }, // doorway 3→5 guard
-    { type:'patrol', pts:[[3.5,5.5],[17.5,5.5]],   speed:110, phase:0.75 }, // lane 5 sweeper
+    { type:'patrol', pts:[[3.5,5.5],[19.0,5.5]],   speed:110, phase:0.75 }, // lane 5 sweeper → right door
     { type:'patrol', pts:[[17.6,6.5],[19.4,6.5]],  speed:60,  phase:0.25 }, // doorway 5→7 guard
-    { type:'patrol', pts:[[3.5,7.5],[17.5,7.5]],   speed:110, phase:0.10 }, // lane 7 sweeper
+    { type:'patrol', pts:[[2.0,7.5],[17.5,7.5]],   speed:110, phase:0.10 }, // lane 7 sweeper → left door
     { type:'patrol', pts:[[1.6,8.5],[3.4,8.5]],    speed:60,  phase:0.75 }, // doorway 7→9 guard
-    { type:'patrol', pts:[[3.5,9.5],[17.5,9.5]],   speed:110, phase:0.55 }, // lane 9 sweeper
-    { type:'patrol', pts:[[17.6,10.5],[19.4,10.5]],speed:60,  phase:0.50 }, // doorway 9→11 guard
-    { type:'patrol', pts:[[3.5,11.5],[16.0,11.5]], speed:105, phase:0.40 }  // lane 11 sweeper
+    { type:'patrol', pts:[[3.5,9.5],[19.0,9.5]],   speed:110, phase:0.55 }, // lane 9 sweeper → right door
+    { type:'patrol', pts:[[17.6,10.5],[19.4,10.5]],speed:70,  phase:0.50 }  // doorway 9→11: the final boss
+  ]
+},
+{
+  name: 'Orbital Doorways',
+  grid: [
+    '#####################',
+    '#......#......#.....#',
+    '#......#......#.....#',
+    '#......#......#.....#',
+    '#.............#.....#',
+    '#.............#.....#',
+    '#S.................E#',
+    '#......#............#',
+    '#......#............#',
+    '#......#......#.....#',
+    '#......#......#.....#',
+    '#......#......#.....#',
+    '#####################'
+  ],
+  enemies: [
+    // Orbits are tangent to the doorways — their arc sweeps through the opening.
+    { type:'circle', cx:10.5, cy:5.0, radius:2.4, speed:120, dir: 1, angle:Math.PI },
+    { type:'circle', cx:11.5, cy:7.0, radius:2.4, speed:120, dir:-1, angle:0 },
+    { type:'patrol', pts:[[4.0,2.0],[4.0,10.5]],   speed:110, phase:0.20 },
+    { type:'patrol', pts:[[1.5,9.5],[5.5,9.5]],    speed:100, phase:0.60 },
+    { type:'patrol', pts:[[17.0,2.0],[17.0,10.5]], speed:110, phase:0.70 },
+    { type:'patrol', pts:[[15.5,3.5],[19.4,3.5]],  speed:100, phase:0.10 }
+  ]
+},
+{
+  name: 'Pinball Corridors',
+  grid: [
+    '#####################',
+    '#S..................#',
+    '#...................#',
+    '#...................#',
+    '#......#######......#',
+    '#......#######......#',
+    '#......#######......#',
+    '#......#######......#',
+    '#......#######......#',
+    '#...................#',
+    '#...................#',
+    '#..................E#',
+    '#####################'
+  ],
+  enemies: [
+    // Two loop enemies run the ring in opposite directions; bouncers ricochet inside it.
+    { type:'loop', pts:[[3,2],[17,2],[17,10],[3,10]],  speed:130, phase:0.10 },
+    { type:'loop', pts:[[3,10],[17,10],[17,2],[3,2]],  speed:130, phase:0.60 },
+    { type:'bounce', x:10.0, y:2.0, dir:[ 1.0, 0.50], speed:145 },
+    { type:'bounce', x:17.5, y:6.0, dir:[-0.60, 1.0], speed:145 },
+    { type:'bounce', x:8.0,  y:10.0,dir:[-1.0,-0.45], speed:145 }
+  ]
+},
+{
+  name: 'The Vault',
+  grid: [
+    '#####################',
+    '#S........#.........#',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#.........#........E#',
+    '#####################'
+  ],
+  enemies: [
+    // Everything at once: orbits + long patrol on the left, a guarded doorway in the
+    // middle, bouncers + a perimeter loop on the right.
+    { type:'patrol', pts:[[10.5,5.5],[10.5,7.5]],  speed:70,  phase:0.00 }, // doorway guard
+    { type:'circle', cx:5, cy:3, radius:1.7, speed:125, dir: 1, angle:0 },
+    { type:'circle', cx:5, cy:9, radius:1.7, speed:125, dir:-1, angle:Math.PI },
+    { type:'patrol', pts:[[8.5,1.5],[8.5,11.5]],   speed:115, phase:0.30 },
+    { type:'bounce', x:13.0, y:3.0, dir:[ 1.0, 0.70], speed:150 },
+    { type:'bounce', x:16.0, y:9.0, dir:[-0.80,-1.0], speed:150 },
+    { type:'loop', pts:[[12,2],[18.5,2],[18.5,10.5],[12,10.5]], speed:135, phase:0.50 }
   ]
 }
 ];
