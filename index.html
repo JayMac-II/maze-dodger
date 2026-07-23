@@ -701,13 +701,14 @@ const LEVELS = [
   ],
   enemies: [
     { type:'patrol', pts:[[14.4,2.5],[15.6,2.5]],  speed:60,  phase:0.00 }, // gap doorway guard
-    { type:'patrol', pts:[[15.5,1.5],[18.4,1.5]],  speed:80,  phase:0.50 }, // A1 corridor guard
+    // (A1 corridor guard removed — a horizontal guard in the 1-tile-tall top
+    //  corridor made A1 unreachable: you can never pass an enemy in a 1-tall lane)
     { type:'patrol', pts:[[14.0,3.4],[14.0,8.5]],  speed:90,  phase:0.30 }, // main-floor vertical guard
     // backwards-F section: the two key guards
     { type:'patrol', pts:[[1.4,7.5],[2.6,7.5]],    speed:60,  phase:0.00 }, // arm-gap guard
     { type:'patrol', pts:[[3.3,10.5],[5.5,10.5]],  speed:60,  phase:0.50 }, // key-nook guard
-    // exit vault: two vertical bouncing guards between D2 and the exit
-    { type:'patrol', pts:[[17.5,10.4],[17.5,11.5]],speed:60,  phase:0.00 },
+    // exit vault: one vertical bouncing guard between D2 and the exit
+    // (the guard nearest D2 was removed — two guards made the vault a coin flip)
     { type:'patrol', pts:[[18.5,10.4],[18.5,11.5]],speed:60,  phase:0.50 },
     // C-box: the goalpost/Y patrol — two prongs on the right wall, stem to the spine
     { type:'patrol', pts:[[19.4,3.6],[18.0,5.0],[17.3,5.0],[18.0,5.0],[19.4,6.6]], speed:100, phase:0.00 },
