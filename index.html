@@ -111,26 +111,15 @@
   <h1 style="font-size:36px">Settings</h1>
   <div class="panel">
     <div class="row">
-      <label>Difficulty</label>
-      <select id="selDifficulty">
-        <option value="easy">Easy</option>
-        <option value="normal" selected>Normal</option>
-        <option value="hard">Hard</option>
+      <label>Mode</label>
+      <select id="selMode">
+        <option value="standard" selected>Standard</option>
         <option value="youwont">You Won't</option>
         <option value="youcant">You Can't</option>
       </select>
     </div>
-    <div class="small">You Won't: Hard speeds, but any death sends you back to Room 1.<br>
-    You Can't: same — and touching a wall kills you too. Good luck with corners.</div>
-    <div class="row">
-      <label>Difficulty ramp</label>
-      <select id="selRamp">
-        <option value="gentle">Gentle</option>
-        <option value="standard" selected>Standard</option>
-        <option value="steep">Steep</option>
-      </select>
-    </div>
-    <div class="small">Ramp controls how much faster enemies get each level.</div>
+    <div class="small">Every room is hand-tuned to one speed — modes raise the stakes, not the speeds.<br>
+    You Won't: any death sends you back to Room 1. You Can't: same, and walls kill on touch.</div>
     <div class="row">
       <label>Theme</label>
       <select id="selTheme">
@@ -174,7 +163,8 @@
     <div><b>Watcher</b> enemies (the ones with an eye) charge when they can see you. Break their line of sight behind a wall and they give up and head home.</div>
     <div>Watchers with a <b>closed eye</b> are asleep — until you grab a key. Then they wake and hunt you for the rest of the room, walls or no walls between you.</div>
     <div><b>Teleporters</b>: step on a solid lettered ring and you're instantly moved to the matching dashed ring. One-way, and enemies can't follow. Some rooms can only be crossed this way.</div>
-    <div>Feeling confident? The <b>You Won't</b> and <b>You Can't</b> difficulties send you back to Room 1 on every death — and in You Can't, the walls kill you too.</div>
+    <div><b>Two-way portals</b> (silver double rings) work from both ends — and <b>hunters</b> can follow you through. Hunters speed up the longer they can see you and don't quit just because you turned a corner. Break their sight, build a lead, then jump.</div>
+    <div>Feeling confident? The <b>You Won't</b> and <b>You Can't</b> modes send you back to Room 1 on every death — and in You Can't, the walls kill you too.</div>
     <button id="btnHowToBack" style="margin-top:6px">Back</button>
   </div>
 </div>
@@ -219,8 +209,19 @@ const ENEMY_RADIUS = 9;          // px, default
 const DEATH_PAUSE = 550;         // ms of red flash after dying
 const COMPLETE_PAUSE = 700;      // ms of fade after clearing a room
 
-const DIFFICULTY_MULT = { easy: 0.75, normal: 1.0, hard: 1.15, youwont: 1.15, youcant: 1.15 };
-const RAMP_FACTOR     = { gentle: 1.02, standard: 1.05, steep: 1.08 };
+// Speed-based difficulty options were RETIRED (v14). The rooms became hand-built
+// choreography — blades, phase-locked sweepers, resonance-tuned guards — and a
+// global speed multiplier rewrites choreography it doesn't understand (see: the
+// arc-blade desync, the Gauntlet-at-slot-9 incident). Everything is tuned at one
+// baseline (the old Hard/Standard). Modes change PENALTIES, never speeds.
+const BASE_DIFF = 1.15, BASE_RAMP = 1.05;
+const GENERIC_TAUNTS = {
+  3:  'Three deaths. The room is starting to feel seen.',
+  6:  'Six. The enemies have begun waving hello.',
+  10: 'Double digits. This room has opened a savings account in your name.',
+  15: 'Fifteen. You could just walk around. (You can\'t. There is no around.)',
+  25: 'Twenty-five deaths. At this point it\'s a relationship.'
+};
 // Enemies can NEVER move faster than 85% of the player. This guarantees every
 // level is winnable on every setting — difficulty tightens gaps, it doesn't cheat.
 const MAX_ENEMY_SPEED = PLAYER_SPEED * 0.85;
@@ -338,7 +339,7 @@ const LEVELS = [
   ]
 },
 {
-  name: 'The Corridors',
+  name: 'Commuters',
   grid: [
     '#####################',
     '#S...#.........#....#',
@@ -367,7 +368,7 @@ const LEVELS = [
   ]
 },
 {
-  name: 'Crossfire',
+  name: 'Crosswalk',
   grid: [
     '#####################',
     '#...................#',
@@ -441,7 +442,8 @@ const LEVELS = [
     { type:'patrol', pts:[[4.0,2.0],[4.0,10.5]],   speed:110, phase:0.20 },
     { type:'patrol', pts:[[1.5,9.5],[5.5,9.5]],    speed:100, phase:0.60 },
     { type:'patrol', pts:[[17.0,2.0],[17.0,10.5]], speed:110, phase:0.70 },
-    { type:'patrol', pts:[[15.5,3.5],[19.4,3.5]],  speed:100, phase:0.10 }
+    { type:'patrol', pts:[[15.5,3.5],[19.4,3.5]],  speed:100, phase:0.10 },
+    { type:'bounce', x:12.0, y:9.0, dir:[-0.8,-0.6], speed:145 }
   ]
 },
 {
@@ -468,12 +470,18 @@ const LEVELS = [
     { type:'bounce', x:10.0, y:2.0, dir:[ 1.0, 0.50], speed:145 },
     { type:'bounce', x:17.5, y:6.0, dir:[-0.60, 1.0], speed:145 },
     { type:'bounce', x:8.0,  y:10.0,dir:[-1.0,-0.45], speed:145 },
-    { type:'bounce', x:14.5, y:7.5, dir:[-0.50,-1.0], speed:145 }
+    { type:'bounce', x:14.5, y:7.5, dir:[-0.50,-1.0], speed:145 },
+    { type:'bounce', x:16.0, y:3.0, dir:[ 0.60, 1.0], speed:145 }
   ]
 },
 {
   name: 'The Gauntlet',
   rampIndex: 6, // speed-locked to its original slot — playtesting proved faster = luck, not skill
+  taunts: {
+    5:  'The sweepers have unionized. You are the grievance.',
+    12: 'Lane four again? It knows. It waits.',
+    20: 'The Gauntlet would like to remind you it was named honestly.'
+  },
   grid: [
     '#####################',
     '#S..................#',
@@ -506,9 +514,13 @@ const LEVELS = [
     { type:'patrol', pts:[[3.5,5.5],[19.0,5.5]],   speed:110, phase:0.75 }, // lane 5 sweeper → right door
     { type:'patrol', pts:[[17.6,6.5],[19.4,6.5]],  speed:60,  phase:0.25 }, // doorway 5→7 guard
     { type:'patrol', pts:[[2.0,7.5],[17.5,7.5]],   speed:110, phase:0.10 }, // lane 7 sweeper → left door
-    { type:'patrol', pts:[[1.6,8.5],[3.4,8.5]],    speed:60,  phase:0.75 }, // doorway 7→9 guard
+    // Guard speeds 53/65 (not 60/70): the sweeper cycle is ~7.9s and a 60-speed
+    // guard cycles at ~1.58s — ratio 5.06, nearly resonant, so the guard showed the
+    // same face every sweeper arrival and a duck window only drifted in every ~4
+    // cycles. Retuned so the ratio lands near a half-integer: window every 1-2.
+    { type:'patrol', pts:[[1.6,8.5],[3.4,8.5]],    speed:53,  phase:0.75 }, // doorway 7→9 guard
     { type:'patrol', pts:[[3.5,9.5],[19.0,9.5]],   speed:110, phase:0.55 }, // lane 9 sweeper → right door
-    { type:'patrol', pts:[[17.6,10.5],[19.4,10.5]],speed:70,  phase:0.50 }  // doorway 9→11: the final boss
+    { type:'patrol', pts:[[17.6,10.5],[19.4,10.5]],speed:65,  phase:0.50 }  // doorway 9→11: the final boss
   ]
 },
 {
@@ -637,6 +649,11 @@ const LEVELS = [
   // middle (short, guarded by three stacked door guards + the arc sweepers), or
   // the long loop around the block (skips the stacked guards, not the arcs).
   name: 'The Heist',
+  taunts: {
+    5:  'The hounds appreciate the exercise you\'re giving them.',
+    12: 'Maybe case the joint before robbing it next time.',
+    20: 'The key is starting to feel like it wasn\'t worth it.'
+  },
   grid: [
     '#####################',
     '#S..#...............#',
@@ -655,7 +672,8 @@ const LEVELS = [
   enemies: [
     // bottom-of-left-wall guard and top-of-right-wall guard
     { type:'patrol', pts:[[4.5,10.4],[4.5,11.5]],  speed:60,  phase:0.00 },
-    { type:'patrol', pts:[[14.5,1.5],[14.5,2.6]],  speed:60,  phase:0.50 },
+    // right doorway guard: full 3-tile sweep — the row-3 slip lane is closed
+    { type:'patrol', pts:[[14.5,1.5],[14.5,3.4]],  speed:60,  phase:0.50 },
     // outer loop: upside-down L around the block, 4 patrols — inner legs extended
     // one row down to keep hugging the relocated block's top edge
     { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,3.6],[11.5,3.6]], speed:115, phase:0.00 },
@@ -684,6 +702,10 @@ const LEVELS = [
   // Chain: A1(top right) → C-box → B1 → F-section → key → C1 → main floor
   // (four sleepers wake) → back to A1 → C-box again → D1 → exit vault.
   name: 'The Relay',
+  taunts: {
+    5:  'The portals work fine. It\'s the space between them that\'s killing you.',
+    12: 'A1 to A2 to B1 to... look, there\'s no shame in drawing a map.'
+  },
   grid: [
     '#####################',
     '#S.................a#',
@@ -717,6 +739,41 @@ const LEVELS = [
     { type:'chaser', x:8.5,  y:3.5, keyActivated:true, speed:100 },
     { type:'chaser', x:10.5, y:3.5, keyActivated:true, speed:100 },
     { type:'chaser', x:12.5, y:3.5, keyActivated:true, speed:100 }
+  ]
+},
+{
+  // Introduces TWO mechanics: the two-way portal (t <-> T, both directions, and
+  // hunters can follow you through) and the hunter (accelerates on sight, keeps
+  // chasing ~1.5s after losing you, tops out just under your speed).
+  // Two sealed halves joined only by the portal. Key is deep in hunter territory;
+  // the exit is back on the quiet side. The lesson: build a lead, THEN jump.
+  name: 'Hot Pursuit',
+  taunts: {
+    4:  'The hunter says thanks for the cardio.',
+    10: 'Pro tip: the portal works better when you actually reach it.',
+    18: 'It follows you through. That\'s the lesson. It has been learned, right?'
+  },
+  grid: [
+    '#####################',
+    '#S........#.........#',
+    '#.........#.........#',
+    '#...##....#....##...#',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#.......t.#.T......K#',
+    '#.........#.........#',
+    '#.........#.........#',
+    '#...##....#....##...#',
+    '#.........#.........#',
+    '#E........#.........#',
+    '#####################'
+  ],
+  enemies: [
+    // left half: one calm loop so the return trip isn't a victory lap
+    { type:'loop', pts:[[2.5,2.5],[7.5,2.5],[7.5,10.5],[2.5,10.5]], speed:100, phase:0.30 },
+    // right half: a vertical sweeper past the portal, and the hunter
+    { type:'patrol', pts:[[13.5,1.5],[13.5,11.0]], speed:90, phase:0.60 },
+    { type:'hunter', x:16.5, y:2.5, sight:7, speed:78, memory:1.5 }
   ]
 }
 ];
@@ -785,10 +842,11 @@ const BEHAVIORS = {
    ============================================================ */
 let grid = [], startPos = { x: 0, y: 0 }, exitTiles = [], keyTiles = [];
 let tpPads = {}, tpExits = {}; // one-way teleporters: 'a'..'d' pads send the player to 'A'..'D'
+let twoWay = {};               // two-way portal pair: 't' <-> 'T'. Hunters can use it too.
 
 function loadGrid(level) {
   grid = level.grid;
-  exitTiles = []; keyTiles = []; tpPads = {}; tpExits = {};
+  exitTiles = []; keyTiles = []; tpPads = {}; tpExits = {}; twoWay = {};
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const ch = grid[r][c];
     if (ch === 'S') startPos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE };
@@ -796,7 +854,26 @@ function loadGrid(level) {
     if (ch === 'K') keyTiles.push({ c, r }); // key space: all must be touched to unlock the exit
     if (ch >= 'a' && ch <= 'd') tpPads[ch] = { c, r };   // teleporter entry
     if (ch >= 'A' && ch <= 'D') tpExits[ch] = { c, r };  // teleporter destination (plain floor)
+    if (ch === 't' || ch === 'T') twoWay[ch] = { c, r }; // two-way portal ends
   }
+}
+// Shared two-way portal hop for any entity with a tpLock flag. Returns true if hopped.
+function tryTwoWayHop(ent, isPlayer) {
+  if (!twoWay.t || !twoWay.T) return false;
+  const x = isPlayer ? ent.x : ent.px, y = isPlayer ? ent.y : ent.py;
+  const tc = Math.floor(x / TILE), tr = Math.floor(y / TILE);
+  const on = (twoWay.t.c === tc && twoWay.t.r === tr) ? 't'
+           : (twoWay.T.c === tc && twoWay.T.r === tr) ? 'T' : null;
+  const lock = isPlayer ? game.tpLock : ent.tpLock;
+  if (on && !lock) {
+    const dest = twoWay[on === 't' ? 'T' : 't'];
+    const nx = (dest.c + 0.5) * TILE, ny = (dest.r + 0.5) * TILE;
+    if (isPlayer) { ent.x = nx; ent.y = ny; game.tpLock = true; }
+    else { ent.px = nx; ent.py = ny; ent.tpLock = true; }
+    return true;
+  }
+  if (!on) { if (isPlayer) game.tpLock = false; else ent.tpLock = false; }
+  return false;
 }
 function exitUnlocked() {
   return keyTiles.length === 0 || game.keysGot.size >= keyTiles.length;
@@ -862,6 +939,9 @@ const game = {
   player: { x: 0, y: 0 },
   enemies: [],
   keysGot: new Set(),
+  roomDeaths: {},   // per-room death counts this session — drives the taunts
+  tauntText: null,
+  tpLock: false,    // prevents two-way portal ping-pong
   paused: false
 };
 
@@ -869,11 +949,11 @@ function enemySpeedMult() {
   // Levels can pin their speed with rampIndex (e.g. The Gauntlet stays at its
   // original slot-7 speed no matter where it sits in the order).
   const idx = LEVELS[game.levelIndex].rampIndex ?? game.levelIndex;
-  return DIFFICULTY_MULT[settings.difficulty] * Math.pow(RAMP_FACTOR[settings.ramp], idx);
+  return BASE_DIFF * Math.pow(BASE_RAMP, idx);
 }
 // Hardcore modes: death sends you back to Room 1. 'youcant' also makes walls lethal.
-function isHardcore()  { return settings.difficulty === 'youwont' || settings.difficulty === 'youcant'; }
-function lethalWalls() { return settings.difficulty === 'youcant'; }
+function isHardcore()  { return settings.mode === 'youwont' || settings.mode === 'youcant'; }
+function lethalWalls() { return settings.mode === 'youcant'; }
 // True if the player square is touching (flush against) any wall tile.
 function touchingWall(cx, cy, half) {
   const eps = 0.5;
@@ -902,10 +982,11 @@ function initLevel(idx) {
       e.px = e.x * TILE; e.py = e.y * TILE;
       e.startPx = e.px; e.startPy = e.py; e.startVx = e.vx; e.startVy = e.vy;
     }
-    if (e.type === 'chaser') {
+    if (e.type === 'chaser' || e.type === 'hunter') {
       e.hx = e.x * TILE; e.hy = e.y * TILE;   // home post
       e.px = e.hx; e.py = e.hy;
       e.chasing = false;
+      if (e.type === 'hunter') { e.boost = 1; e.mem = 0; e.tpLock = false; e.r = spec.r || 10; }
     }
     return e;
   });
@@ -927,9 +1008,12 @@ function resetRun() {
   game.player.x = startPos.x; game.player.y = startPos.y;
   game.levelTime = 0;
   game.keysGot = new Set(); // death re-locks the exit — keys must be re-earned
+  game.tauntText = null;
+  game.tpLock = false;
   for (const e of game.enemies) {
     if (e.type === 'bounce') { e.px = e.startPx; e.py = e.startPy; e.vx = e.startVx; e.vy = e.startVy; }
     if (e.type === 'chaser') { e.px = e.hx; e.py = e.hy; e.chasing = false; }
+    if (e.type === 'hunter') { e.px = e.hx; e.py = e.hy; e.chasing = false; e.boost = 1; e.mem = 0; e.tpLock = false; }
   }
   game.state = 'ready';
 }
@@ -976,8 +1060,31 @@ function stepChaser(e, dt) {
   if (circleHitsWall(e.px, ny, e.r)) ny = e.py;
   e.py = ny;
 }
+// Hunter: a chaser that ACCELERATES the longer it can see you (up to ~95% of your
+// speed — it gains, slowly, so open ground is a countdown, not a death sentence),
+// keeps chasing ~1.5s after losing sight, and uses two-way portals like you do.
+function stepHunter(e, dt) {
+  const px = game.player.x, py = game.player.y;
+  const d = Math.hypot(px - e.px, py - e.py);
+  const seen = d < (e.sight || 7) * TILE && hasLOS(e.px, e.py, px, py);
+  if (seen) e.mem = e.memory || 1.5; else e.mem -= dt;
+  e.chasing = seen || e.mem > 0;
+  if (e.chasing) e.boost = Math.min(1.5, e.boost + 0.35 * dt);
+  else e.boost = Math.max(1, e.boost - 0.8 * dt);
+  const tx = e.chasing ? px : e.hx, ty = e.chasing ? py : e.hy;
+  const sp = e.chasing ? Math.min(e.speed * e.boost, PLAYER_SPEED * 0.95) : e.speed * 0.6;
+  const dd = Math.hypot(tx - e.px, ty - e.py);
+  if (dd < 2) return;
+  let nx = e.px + (tx - e.px) / dd * sp * dt;
+  if (circleHitsWall(nx, e.py, e.r)) nx = e.px;
+  e.px = nx;
+  let ny = e.py + (ty - e.py) / dd * sp * dt;
+  if (circleHitsWall(e.px, ny, e.r)) ny = e.py;
+  e.py = ny;
+  tryTwoWayHop(e, false); // hunters ride portals — chasing you or heading home
+}
 function enemyPos(e) {
-  if (e.type === 'bounce' || e.type === 'chaser') return { x: e.px, y: e.py };
+  if (e.type === 'bounce' || e.type === 'chaser' || e.type === 'hunter') return { x: e.px, y: e.py };
   return BEHAVIORS[e.type](e, game.levelTime);
 }
 
@@ -1018,6 +1125,7 @@ function update(dt) {
   for (const e of game.enemies) {
     if (e.type === 'bounce') stepBounce(e, dt);
     if (e.type === 'chaser') stepChaser(e, dt);
+    if (e.type === 'hunter') stepHunter(e, dt);
   }
 
   // collisions
@@ -1042,6 +1150,20 @@ function update(dt) {
       }
     }
   }
+  // two-way portal (hunters can follow — see tryTwoWayHop)
+  if (tryTwoWayHop(game.player, true)) {
+    game.tpFx = { x: game.player.x, y: game.player.y, until: performance.now() + 400 };
+  }
+  // first-encounter tutorial for two-way portals (shown once, ever)
+  if (twoWay.t && !settings.tips.twoway) {
+    for (const k of ['t', 'T']) {
+      const p = twoWay[k];
+      if (p && Math.hypot(game.player.x - (p.c + 0.5) * TILE, game.player.y - (p.r + 0.5) * TILE) < 2.5 * TILE) {
+        game.state = 'tutorial';
+        return;
+      }
+    }
+  }
 
   // key pickup + exit check
   const pc = Math.floor(game.player.x / TILE), pr = Math.floor(game.player.y / TILE);
@@ -1058,10 +1180,14 @@ function update(dt) {
 }
 function die() {
   game.deaths++;
+  const rd = (game.roomDeaths[game.levelIndex] = (game.roomDeaths[game.levelIndex] || 0) + 1);
+  const lvl = LEVELS[game.levelIndex];
+  game.tauntText = (lvl.taunts && lvl.taunts[rd]) || GENERIC_TAUNTS[rd] || null;
   updateHud();
   saveProgress();
   game.state = 'dead';
-  game.stateTimer = (isHardcore() && game.levelIndex > 0) ? 950 : DEATH_PAUSE;
+  game.stateTimer = (isHardcore() && game.levelIndex > 0) ? 1100
+                  : game.tauntText ? 1400 : DEATH_PAUSE;
 }
 function winGame() {
   game.state = 'win';
@@ -1137,6 +1263,15 @@ function draw() {
     ctx.fillText(exitCh, x, y + 1);
     ctx.globalAlpha = 1;
   }
+  // two-way portal ends: identical silver double rings — no direction, no hierarchy
+  for (const k of ['t', 'T']) {
+    const p = twoWay[k];
+    if (!p) continue;
+    const x = (p.c + 0.5) * TILE, y = (p.r + 0.5) * TILE;
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, 14 + 1.5 * pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 8 - 1.5 * pulse, 0, Math.PI * 2); ctx.stroke();
+  }
   ctx.textBaseline = 'alphabetic';
   if (game.tpFx && performance.now() < game.tpFx.until) {
     const f = 1 - (game.tpFx.until - performance.now()) / 400;
@@ -1206,6 +1341,29 @@ function draw() {
         ctx.globalAlpha = 1;
       }
     }
+    if (e.type === 'hunter') {
+      // hunter: angry eye + a ring that thickens as its speed boost builds
+      const a = Math.atan2(game.player.y - p.y, game.player.x - p.x);
+      ctx.beginPath();
+      ctx.arc(p.x + Math.cos(a) * e.r * 0.35, p.y + Math.sin(a) * e.r * 0.35, e.r * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fill();
+      // brow line for menace
+      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p.x - e.r * 0.55, p.y - e.r * 0.55);
+      ctx.lineTo(p.x + e.r * 0.55, p.y - e.r * 0.25);
+      ctx.stroke();
+      if (e.boost > 1.03) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, e.r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = T.enemy;
+        ctx.lineWidth = 1 + (e.boost - 1) * 8;
+        ctx.globalAlpha = 0.35 + 0.4 * Math.sin(performance.now() / (e.chasing ? 70 : 150));
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
   }
   // player
   const half = PLAYER_SIZE / 2;
@@ -1239,7 +1397,33 @@ function draw() {
   } else if (game.state === 'dead') {
     ctx.fillStyle = 'rgba(200,30,30,0.35)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (isHardcore() && game.levelIndex > 0) overlay('BACK TO ROOM 1', 'You knew the deal.');
+    if (isHardcore() && game.levelIndex > 0) {
+      overlay('BACK TO ROOM 1', game.tauntText || 'You knew the deal.');
+    } else if (game.tauntText) {
+      ctx.fillStyle = 'rgba(10,12,30,0.55)';
+      ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
+      ctx.fillStyle = THEMES[settings.theme].overlayText;
+      ctx.textAlign = 'center';
+      ctx.font = 'italic 17px "Segoe UI", sans-serif';
+      ctx.fillText(game.tauntText, canvas.width / 2, canvas.height / 2 + 6);
+    }
+  } else if (game.state === 'tutorial') {
+    ctx.fillStyle = 'rgba(10,12,30,0.8)';
+    ctx.fillRect(60, 110, canvas.width - 120, 300);
+    ctx.fillStyle = THEMES[settings.theme].overlayText;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 26px "Segoe UI", sans-serif';
+    ctx.fillText('TWO-WAY PORTAL', canvas.width / 2, 160);
+    ctx.font = '16px "Segoe UI", sans-serif';
+    ['Unlike the one-way rings, this portal works from BOTH ends —',
+     'you can hop back and forth through it as often as you like.',
+     '',
+     'So can hunters. If one is close behind when you jump,',
+     'it follows you through. Build a lead before you take the portal.',
+     '',
+     'Press any key to continue.'].forEach((line, i) => {
+      ctx.fillText(line, canvas.width / 2, 200 + i * 28);
+    });
   } else if (game.state === 'complete') {
     ctx.fillStyle = 'rgba(80,200,110,0.3)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1270,6 +1454,12 @@ const KEYMAP = {
 };
 document.addEventListener('keydown', (ev) => {
   if (KEYMAP[ev.key] !== undefined) ev.preventDefault();
+  if (game.state === 'tutorial') {
+    settings.tips.twoway = true;
+    saveSettingsOnly();
+    game.state = 'playing';
+    return;
+  }
   if (game.state === 'ready' && KEYMAP[ev.key] && !game.paused) {
     game.state = 'playing';
   }
@@ -1292,7 +1482,7 @@ function togglePause() {
 /* ============================================================
    9. UI, SETTINGS, SAVE
    ============================================================ */
-const settings = { difficulty: 'normal', ramp: 'standard', theme: 'classic', playerColor: null, playerIcon: null };
+const settings = { mode: 'standard', theme: 'classic', playerColor: null, playerIcon: null, tips: {} };
 
 // ---- player icon (uploaded photo) ----
 let playerIconImg = null; // live Image object built from settings.playerIcon dataURL
@@ -1414,11 +1604,8 @@ document.getElementById('btnQuitToMenu').addEventListener('click', () => {
   refreshMenu();
 });
 
-document.getElementById('selDifficulty').addEventListener('change', (e) => {
-  settings.difficulty = e.target.value; saveSettingsOnly();
-});
-document.getElementById('selRamp').addEventListener('change', (e) => {
-  settings.ramp = e.target.value; saveSettingsOnly();
+document.getElementById('selMode').addEventListener('change', (e) => {
+  settings.mode = e.target.value; saveSettingsOnly();
 });
 document.getElementById('selTheme').addEventListener('change', (e) => {
   settings.theme = e.target.value; applyTheme(); saveSettingsOnly();
@@ -1442,8 +1629,13 @@ document.getElementById('btnRemoveIcon').addEventListener('click', () => setPlay
   const data = load();
   if (data.settings) {
     Object.assign(settings, data.settings);
-    document.getElementById('selDifficulty').value = settings.difficulty;
-    document.getElementById('selRamp').value = settings.ramp;
+    // migrate pre-v14 saves: old difficulty field folds into mode
+    if (!settings.mode) {
+      const d = data.settings.difficulty;
+      settings.mode = (d === 'youwont' || d === 'youcant') ? d : 'standard';
+    }
+    if (!settings.tips) settings.tips = {};
+    document.getElementById('selMode').value = settings.mode;
     document.getElementById('selTheme').value = settings.theme;
     if (settings.playerColor) document.getElementById('playerColor').value = settings.playerColor;
     if (settings.playerIcon) {
