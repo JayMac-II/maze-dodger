@@ -687,36 +687,36 @@ const LEVELS = [
   grid: [
     '#####################',
     '#S.................a#',
-    '##############..#####',
+    '#############...#####',
     '#...............#d..#',
     '#######.........#...#',
     '#B...c#.........#..b#',
     '#.....#.........#...#',
     '#..####.........#A..#',
     '#.....#.........#####',
-    '###...#........######',
-    '#.....#........#D...#',
-    '#K....#C.......#...E#',
+    '###...#......########',
+    '#.....#......#D.....#',
+    '#K....#C.....#.....E#',
     '#####################'
   ],
   enemies: [
-    { type:'patrol', pts:[[14.4,2.5],[15.6,2.5]],  speed:60,  phase:0.00 }, // gap doorway guard
+    { type:'patrol', pts:[[13.4,2.5],[15.6,2.5]],  speed:60,  phase:0.00 }, // gap doorway guard (3-wide gap)
     // (A1 corridor guard removed — a horizontal guard in the 1-tile-tall top
     //  corridor made A1 unreachable: you can never pass an enemy in a 1-tall lane)
     { type:'patrol', pts:[[14.0,3.4],[14.0,8.5]],  speed:90,  phase:0.30 }, // main-floor vertical guard
-    // backwards-F section: the two key guards
+    // S room: the two key guards, each sweeping a doorway
     { type:'patrol', pts:[[1.4,7.5],[2.6,7.5]],    speed:60,  phase:0.00 }, // arm-gap guard
-    { type:'patrol', pts:[[3.3,10.5],[5.5,10.5]],  speed:60,  phase:0.50 }, // key-nook guard
-    // exit vault: one vertical bouncing guard between D2 and the exit
-    // (the guard nearest D2 was removed — two guards made the vault a coin flip)
+    { type:'patrol', pts:[[3.3,9.5],[5.5,9.5]],    speed:60,  phase:0.50 }, // key doorway guard
+    // exit vault (extended left 2 cols): two vertical bouncing guards
+    { type:'patrol', pts:[[16.5,10.4],[16.5,11.5]],speed:60,  phase:0.00 },
     { type:'patrol', pts:[[18.5,10.4],[18.5,11.5]],speed:60,  phase:0.50 },
     // C-box: the goalpost/Y patrol — two prongs on the right wall, stem to the spine
     { type:'patrol', pts:[[19.4,3.6],[18.0,5.0],[17.3,5.0],[18.0,5.0],[19.4,6.6]], speed:100, phase:0.00 },
     // four sleepers on the main floor, in a line beneath the top wall
+    { type:'chaser', x:6.5,  y:3.5, keyActivated:true, speed:100 },
     { type:'chaser', x:8.5,  y:3.5, keyActivated:true, speed:100 },
     { type:'chaser', x:10.5, y:3.5, keyActivated:true, speed:100 },
-    { type:'chaser', x:12.5, y:3.5, keyActivated:true, speed:100 },
-    { type:'chaser', x:14.5, y:3.5, keyActivated:true, speed:100 }
+    { type:'chaser', x:12.5, y:3.5, keyActivated:true, speed:100 }
   ]
 }
 ];
