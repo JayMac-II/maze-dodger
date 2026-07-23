@@ -104,6 +104,12 @@
     <button class="secondary" id="btnHowTo">How to Play</button>
   </div>
   <div class="small" id="menuStats"></div>
+  <!-- DEV PANEL: only rendered when the page is opened with ?dev in the URL.
+       Testing tool — delete this div and the DEV block in the JS to remove. -->
+  <div class="panel" id="devPanel" style="display:none; max-width:560px">
+    <div style="font-weight:700">DEV — jump to room <span class="small">( [ and ] switch rooms in-game )</span></div>
+    <div id="devLevels" style="display:flex; flex-wrap:wrap; gap:6px"></div>
+  </div>
 </div>
 
 <!-- ===================== SETTINGS SCREEN ===================== -->
@@ -1477,6 +1483,12 @@ document.addEventListener('keydown', (ev) => {
   if (KEYMAP[ev.key]) keys[KEYMAP[ev.key]] = true;
   if (ev.key === 'Escape' && (game.state === 'playing' || game.state === 'ready')) togglePause();
   if ((ev.key === 'r' || ev.key === 'R') && game.state === 'playing' && !game.paused) resetRun();
+  // DEV: bracket keys hop between rooms while testing
+  if (window.DEV && !game.paused &&
+      document.getElementById('gameScreen').classList.contains('active')) {
+    if (ev.key === '[' && game.levelIndex > 0) { initLevel(game.levelIndex - 1); }
+    if (ev.key === ']' && game.levelIndex < LEVELS.length - 1) { initLevel(game.levelIndex + 1); }
+  }
 });
 document.addEventListener('keyup', (ev) => {
   if (KEYMAP[ev.key]) keys[KEYMAP[ev.key]] = false;
@@ -1658,6 +1670,25 @@ document.getElementById('btnRemoveIcon').addEventListener('click', () => setPlay
   applyTheme();
   refreshIconUI();
   refreshMenu();
+  // DEV mode: open the page with ?dev appended to the URL to enable
+  if (new URLSearchParams(location.search).has('dev')) {
+    window.DEV = true;
+    document.getElementById('devPanel').style.display = '';
+    const wrap = document.getElementById('devLevels');
+    LEVELS.forEach((lvl, i) => {
+      const b = document.createElement('button');
+      b.className = 'secondary';
+      b.style.cssText = 'padding:6px 10px; font-size:13px';
+      b.textContent = `${i + 1}. ${lvl.name}`;
+      b.addEventListener('click', () => {
+        game.deaths = 0;
+        game.roomDeaths = {};
+        initLevel(i);
+        showScreen('gameScreen');
+      });
+      wrap.appendChild(b);
+    });
+  }
   loadGrid(LEVELS[0]); // so canvas has something if drawn early
 })();
 
