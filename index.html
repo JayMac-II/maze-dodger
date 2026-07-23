@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maze Dodger</title>
+<!--
+  ============================================================
+  MAZE DODGER — v1
+  A modular maze-dodging game inspired by The World's Hardest Game.
+
+  ARCHITECTURE (each section is independent — edit one without touching others):
+    1. CONFIG    — tuning constants (speeds, sizes, difficulty tables)
+    2. THEMES    — color palettes. Add a theme = add one object.
+    3. LEVELS    — level data. Levels are DATA, not code.
+                   Add a level = add one object with a grid + enemy list.
+    4. BEHAVIORS — enemy movement types. Add a movement style = add one function.
+    5. ENGINE    — collision, geometry (rarely needs changes)
+    6. GAME      — state machine (menu/ready/playing/dead/complete/win)
+    7. RENDER    — all drawing. Swap this out for a sprite renderer later.
+    8. INPUT     — keyboard handling
+    9. UI/SAVE   — menus, settings, localStorage persistence
+
+  HOW TO ADD A LEVEL:
+    Grid: 13 strings of 21 chars. '#'=wall  '.'=floor  'S'=start  'E'=exit
+    Enemies: { type:'patrol'|'loop'|'circle'|'bounce', ... } coords in TILE units.
+      patrol: pts:[[x,y],...] ping-pongs along the points. phase 0..1 offsets start.
+      loop:   pts:[[x,y],...] cycles around the points.
+      circle: cx,cy,radius,dir(1|-1),angle(start radians)
+      bounce: x,y,dir:[dx,dy] bounces off walls
+  ============================================================
+-->
+<style>
+  :root {
+    --bg:#b8c0ee; --panel:#f0f2ff; --text:#1d2a6e; --accent:#3355ff;
+    --accent2:#e33; --btn:#2b3a8f; --btnText:#ffffff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    transition: background .4s;
+  }
+  .screen { display:none; }
+  .screen.active { display:flex; flex-direction:column; align-items:center; gap:18px; }
+  h1 { font-size:52px; letter-spacing:2px; text-shadow: 3px 3px 0 rgba(0,0,0,.15); }
+  .subtitle { opacity:.75; margin-top:-10px; }
+  .panel {
+    background: var(--panel); border-radius:16px; padding:28px 36px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25); min-width:380px;
+    display:flex; flex-direction:column; gap:14px; align-items:stretch;
+  }
+  button {
+    font-size:18px; font-weight:600; padding:12px 24px; border:none; border-radius:10px;
+    background: var(--btn); color: var(--btnText); cursor:pointer;
+    transition: transform .08s, filter .15s;
+  }
+  button:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  button:active { transform: translateY(1px); }
+  button.secondary { background: transparent; color: var(--text); border:2px solid var(--btn); }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .row label { font-weight:600; }
+  select, input[type=color] {
+    font-size:16px; padding:6px 10px; border-radius:8px; border:2px solid var(--btn);
+    background:#fff; color:#222; cursor:pointer;
+  }
+  input[type=color] { width:60px; height:38px; padding:2px; }
+  .small { font-size:13px; opacity:.7; }
+  #gameWrap { position:relative; }
+  canvas {
+    display:block; border-radius:10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  }
+  #hud {
+    display:flex; justify-content:space-between; align-items:center;
+    width:840px; padding:8px 4px; font-weight:600; font-size:17px;
+  }
+  #hud .hint { font-weight:400; font-size:13px; opacity:.7; }
+  #pauseOverlay {
+    position:absolute; inset:0; border-radius:10px;
+    background: rgba(10,12,30,.72); display:none;
+    flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  }
+  #pauseOverlay.active { display:flex; }
+  #pauseOverlay h2 { color:#fff; font-size:34px; }
+  .kbd {
+    display:inline-block; background:rgba(0,0,0,.12); border-radius:5px;
+    padding:1px 7px; font-family:monospace; font-size:13px; border:1px solid rgba(0,0,0,.2);
+  }
+  .howto-list { display:flex; flex-direction:column; gap:8px; font-size:15px; line-height:1.45; }
+</style>
+</head>
+<body>
+
+<!-- ===================== MENU SCREEN ===================== -->
+<div id="menuScreen" class="screen active">
+  <h1>MAZE DODGER</h1>
+  <div class="subtitle">Don't touch anything that moves.</div>
+  <div class="panel">
+    <button id="btnPlay">Play</button>
+    <button id="btnResume" style="display:none">Resume — Level <span id="resumeLevel"></span></button>
+    <button class="secondary" id="btnSettings">Settings &amp; Themes</button>
+    <button class="secondary" id="btnHowTo">How to Play</button>
+  </div>
+  <div class="small" id="menuStats"></div>
+</div>
+
+<!-- ===================== SETTINGS SCREEN ===================== -->
+<div id="settingsScreen" class="screen">
+  <h1 style="font-size:36px">Settings</h1>
+  <div class="panel">
+    <div class="row">
+      <label>Difficulty</label>
+      <select id="selDifficulty">
+        <option value="easy">Easy</option>
+        <option value="normal" selected>Normal</option>
+        <option value="hard">Hard</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Difficulty ramp</label>
+      <select id="selRamp">
+        <option value="gentle">Gentle</option>
+        <option value="standard" selected>Standard</option>
+        <option value="steep">Steep</option>
+      </select>
+    </div>
+    <div class="small">Ramp controls how much faster enemies get each level.</div>
+    <div class="row">
+      <label>Theme</label>
+      <select id="selTheme">
+        <option value="classic" selected>Classic</option>
+        <option value="neon">Neon Night</option>
+        <option value="forest">Forest</option>
+        <option value="sunset">Sunset</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Player color</label>
+      <div style="display:flex; gap:8px; align-items:center">
+        <input type="color" id="playerColor" value="#e23333">
+        <button class="secondary" id="btnResetColor" style="padding:6px 12px; font-size:13px">Theme default</button>
+      </div>
+    </div>
+    <button id="btnSettingsBack">Back</button>
+  </div>
+</div>
+
+<!-- ===================== HOW TO PLAY SCREEN ===================== -->
+<div id="howtoScreen" class="screen">
+  <h1 style="font-size:36px">How to Play</h1>
+  <div class="panel howto-list">
+    <div>Move with <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> or the arrow keys.</div>
+    <div>Get from the start to the <b>glowing exit</b> without touching a moving enemy.</div>
+    <div>Touch an enemy and you're reset to the start of the room. The enemies reset too — their patterns are the same every attempt, so every death teaches you something.</div>
+    <div>Each room's enemies move differently: some pace back and forth, some orbit, some follow the corridors, some ricochet around.</div>
+    <div><span class="kbd">Esc</span> pauses. <span class="kbd">R</span> restarts the room. Progress saves automatically.</div>
+    <button id="btnHowToBack" style="margin-top:6px">Back</button>
+  </div>
+</div>
+
+<!-- ===================== WIN SCREEN ===================== -->
+<div id="winScreen" class="screen">
+  <h1 style="font-size:44px">YOU ESCAPED</h1>
+  <div class="panel" style="align-items:center; text-align:center">
+    <div style="font-size:20px">All <span id="winLevels"></span> rooms cleared.</div>
+    <div style="font-size:17px">Total deaths: <b id="winDeaths"></b></div>
+    <div class="small" id="winQuip"></div>
+    <button id="btnWinMenu">Back to Menu</button>
+  </div>
+</div>
+
+<!-- ===================== GAME SCREEN ===================== -->
+<div id="gameScreen" class="screen">
+  <div id="hud">
+    <div>Room <span id="hudLevel"></span>/<span id="hudTotal"></span> — <span id="hudName"></span></div>
+    <div>Deaths: <span id="hudDeaths">0</span></div>
+    <div class="hint">Esc = pause &nbsp; R = restart room</div>
+  </div>
+  <div id="gameWrap">
+    <canvas id="canvas" width="840" height="520"></canvas>
+    <div id="pauseOverlay">
+      <h2>Paused</h2>
+      <button id="btnResumeGame">Resume</button>
+      <button class="secondary" style="color:#fff; border-color:#fff" id="btnQuitToMenu">Quit to Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   1. CONFIG
+   ============================================================ */
+const TILE = 40, COLS = 21, ROWS = 13;
+const PLAYER_SIZE = 24;          // px, square
+const PLAYER_SPEED = 185;        // px per second
+const ENEMY_RADIUS = 9;          // px, default
+const DEATH_PAUSE = 550;         // ms of red flash after dying
+const COMPLETE_PAUSE = 700;      // ms of fade after clearing a room
+
+const DIFFICULTY_MULT = { easy: 0.75, normal: 1.0, hard: 1.28 };
+const RAMP_FACTOR     = { gentle: 1.03, standard: 1.065, steep: 1.11 };
+
+const SAVE_KEY = 'mazeDodger.v1';
+
+/* ============================================================
+   2. THEMES — add a theme: add an object here + an <option> in the select
+   ============================================================ */
+const THEMES = {
+  classic: {
+    bg:'#b8c0ee', panel:'#f0f2ff', text:'#1d2a6e', btn:'#2b3a8f', btnText:'#fff',
+    floorA:'#e8ebfa', floorB:'#dfe3f7', wall:'#2b3a8f', wallEdge:'#1c2870',
+    player:'#e23333', enemy:'#2f4ff0', enemyCore:'#ffffff',
+    exit:'#5ecb72', start:'#c9cff2', overlayText:'#ffffff'
+  },
+  neon: {
+    bg:'#0b0e1a', panel:'#161b2e', text:'#c8e6ff', btn:'#00b3c8', btnText:'#03121a',
+    floorA:'#141a30', floorB:'#101527', wall:'#2a3455', wallEdge:'#1a2138',
+    player:'#00e5ff', enemy:'#ff2fa0', enemyCore:'#2a0a1e',
+    exit:'#3dffa0', start:'#1d2745', overlayText:'#c8e6ff'
+  },
+  forest: {
+    bg:'#22331f', panel:'#e9efdc', text:'#25391f', btn:'#4a6b3a', btnText:'#fff',
+    floorA:'#d9e4c4', floorB:'#cfdcb8', wall:'#4a6b3a', wallEdge:'#37522a',
+    player:'#d9772e', enemy:'#5b3a8f', enemyCore:'#efe6ff',
+    exit:'#8fd977', start:'#c2d1a6', overlayText:'#f3f7e9'
+  },
+  sunset: {
+    bg:'#3b1f3e', panel:'#ffe9d6', text:'#4a2547', btn:'#c9484f', btnText:'#fff',
+    floorA:'#ffdfc2', floorB:'#f9d3b0', wall:'#7c3558', wallEdge:'#5e2543',
+    player:'#3b6fd9', enemy:'#e0483e', enemyCore:'#ffe9d6',
+    exit:'#ffc94d', start:'#efc8a4', overlayText:'#ffe9d6'
+  }
+};
+
+/* ============================================================
+   3. LEVELS — pure data. Grid + enemies. Speeds in px/s (tile units for coords).
+   ============================================================ */
+const LEVELS = [
+{
+  name: 'Warm Up',
+  grid: [
+    '#####################',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#S.................E#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'patrol', pts:[[5.5,2.5],[5.5,10.5]],   speed:110, phase:0.00 },
+    { type:'patrol', pts:[[9.5,2.5],[9.5,10.5]],   speed:110, phase:0.50 },
+    { type:'patrol', pts:[[13.5,2.5],[13.5,10.5]], speed:110, phase:0.25 },
+    { type:'patrol', pts:[[17.5,2.5],[17.5,10.5]], speed:110, phase:0.75 }
+  ]
+},
+{
+  name: 'The Lanes',
+  grid: [
+    '#####################',
+    '#S..................#',
+    '#...................#',
+    '#################...#',
+    '#...................#',
+    '#...................#',
+    '#...#################',
+    '#...................#',
+    '#...................#',
+    '#################...#',
+    '#...................#',
+    '#..................E#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'patrol', pts:[[4.5,1.5],[18.5,1.5]],  speed:120, phase:0.45 },
+    { type:'patrol', pts:[[3.5,2.5],[18.5,2.5]],  speed:120, phase:0.85 },
+    { type:'patrol', pts:[[2.5,4.5],[17.5,4.5]],  speed:125, phase:0.10 },
+    { type:'patrol', pts:[[2.5,5.5],[17.5,5.5]],  speed:125, phase:0.60 },
+    { type:'patrol', pts:[[3.5,7.5],[18.5,7.5]],  speed:125, phase:0.30 },
+    { type:'patrol', pts:[[3.5,8.5],[18.5,8.5]],  speed:125, phase:0.80 },
+    { type:'patrol', pts:[[2.5,10.5],[16.5,10.5]],speed:120, phase:0.20 }
+  ]
+},
+{
+  name: 'Roundabout',
+  grid: [
+    '#####################',
+    '#...................#',
+    '#...................#',
+    '#....##.......##....#',
+    '#....##.......##....#',
+    '#...................#',
+    '#S.................E#',
+    '#...................#',
+    '#....##.......##....#',
+    '#....##.......##....#',
+    '#...................#',
+    '#...................#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'circle', cx:6,  cy:4, radius:2.4, speed:120, dir: 1, angle:0 },
+    { type:'circle', cx:15, cy:4, radius:2.4, speed:120, dir:-1, angle:Math.PI },
+    { type:'circle', cx:6,  cy:9, radius:2.4, speed:120, dir:-1, angle:Math.PI/2 },
+    { type:'circle', cx:15, cy:9, radius:2.4, speed:120, dir: 1, angle:-Math.PI/2 },
+    { type:'patrol', pts:[[10.5,1.8],[10.5,11.2]], speed:115, phase:0.5 }
+  ]
+},
+{
+  name: 'The Corridors',
+  grid: [
+    '#####################',
+    '#S...#.........#....#',
+    '#....#.........#....#',
+    '#....#....#....#....#',
+    '#....#....#....#....#',
+    '#....#....#....#....#',
+    '#....#....#....#....#',
+    '#....#....#....#....#',
+    '#....#....#....#....#',
+    '#....#....#....#....#',
+    '#.........#.........#',
+    '#.........#........E#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'patrol', pts:[[2.5,3.0],[2.5,10.8]], speed:120, phase:0.55 },
+    { type:'patrol', pts:[[4.0,3.0],[4.0,10.8]], speed:120, phase:0.05 },
+    { type:'loop',   pts:[[6.6,2.0],[9.0,2.0],[9.0,10.8],[6.6,10.8]], speed:130, phase:0.00 },
+    { type:'loop',   pts:[[6.6,2.0],[9.0,2.0],[9.0,10.8],[6.6,10.8]], speed:130, phase:0.50 },
+    { type:'loop',   pts:[[11.6,1.6],[14.0,1.6],[14.0,9.0],[11.6,9.0]], speed:130, phase:0.25 },
+    { type:'loop',   pts:[[11.6,1.6],[14.0,1.6],[14.0,9.0],[11.6,9.0]], speed:130, phase:0.75 },
+    { type:'patrol', pts:[[17.0,1.6],[17.0,9.0]], speed:120, phase:0.35 },
+    { type:'patrol', pts:[[18.5,1.6],[18.5,9.0]], speed:120, phase:0.85 },
+    { type:'patrol', pts:[[12.0,10.5],[18.0,10.5]], speed:115, phase:0.5 }
+  ]
+},
+{
+  name: 'Crossfire',
+  grid: [
+    '#####################',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#........###........#',
+    '#S.......###.......E#',
+    '#........###........#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#...................#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'circle', cx:10.5, cy:6.5, radius:3.0, speed:135, dir: 1, angle:0 },
+    { type:'circle', cx:10.5, cy:6.5, radius:3.0, speed:135, dir: 1, angle:Math.PI },
+    { type:'patrol', pts:[[2.5,2.5],[18.5,2.5]],   speed:130, phase:0.20 },
+    { type:'patrol', pts:[[2.5,10.5],[18.5,10.5]], speed:130, phase:0.70 },
+    { type:'patrol', pts:[[4.5,1.6],[4.5,11.4]],   speed:125, phase:0.40 },
+    { type:'patrol', pts:[[16.5,1.6],[16.5,11.4]], speed:125, phase:0.90 }
+  ]
+},
+{
+  name: 'Pinball',
+  grid: [
+    '#####################',
+    '#..................E#',
+    '#...................#',
+    '#....#.........#....#',
+    '#...................#',
+    '#...................#',
+    '#.........#.........#',
+    '#...................#',
+    '#...................#',
+    '#....#.........#....#',
+    '#...................#',
+    '#S..................#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'bounce', x:8.0,  y:4.0, dir:[ 1.0, 0.65], speed:150 },
+    { type:'bounce', x:13.0, y:8.5, dir:[-1.0, 0.55], speed:150 },
+    { type:'bounce', x:5.0,  y:7.0, dir:[ 0.8,-1.0 ], speed:150 },
+    { type:'bounce', x:16.0, y:5.0, dir:[-0.7,-1.0 ], speed:150 },
+    { type:'bounce', x:10.5, y:2.2, dir:[ 1.0,-0.4 ], speed:150 }
+  ]
+},
+{
+  name: 'The Gauntlet',
+  grid: [
+    '#####################',
+    '#S..................#',
+    '#################...#',
+    '#...................#',
+    '#...#################',
+    '#...................#',
+    '#################...#',
+    '#...................#',
+    '#...#################',
+    '#...................#',
+    '#################...#',
+    '#..................E#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'patrol', pts:[[5.5,1.5],[18.0,1.5]],  speed:100, phase:0.50 },
+    { type:'patrol', pts:[[1.6,3.5],[19.4,3.5]],  speed:105, phase:0.15 },
+    { type:'patrol', pts:[[1.6,3.5],[19.4,3.5]],  speed:105, phase:0.65 },
+    { type:'patrol', pts:[[1.6,5.5],[19.4,5.5]],  speed:105, phase:0.40 },
+    { type:'patrol', pts:[[1.6,5.5],[19.4,5.5]],  speed:105, phase:0.90 },
+    { type:'patrol', pts:[[1.6,7.5],[19.4,7.5]],  speed:105, phase:0.10 },
+    { type:'patrol', pts:[[1.6,7.5],[19.4,7.5]],  speed:105, phase:0.60 },
+    { type:'patrol', pts:[[1.6,9.5],[19.4,9.5]],  speed:105, phase:0.35 },
+    { type:'patrol', pts:[[1.6,9.5],[19.4,9.5]],  speed:105, phase:0.85 },
+    { type:'patrol', pts:[[2.0,11.5],[16.5,11.5]],speed:100, phase:0.50 }
+  ]
+}
+];
+
+/* ============================================================
+   4. BEHAVIORS — each returns {x, y} in pixels for a given elapsed time t (s).
+   Add a movement style: add a function here. 'bounce' is stateful (see step()).
+   ============================================================ */
+function buildPath(pts) {
+  const p = pts.map(([x, y]) => [x * TILE, y * TILE]);
+  const segs = []; let total = 0;
+  for (let i = 0; i < p.length - 1; i++) {
+    const len = Math.hypot(p[i+1][0]-p[i][0], p[i+1][1]-p[i][1]);
+    segs.push({ a: p[i], b: p[i+1], len }); total += len;
+  }
+  return { segs, total, closedExtra: Math.hypot(p[0][0]-p[p.length-1][0], p[0][1]-p[p.length-1][1]) };
+}
+function pointAlong(path, d, closed) {
+  const segs = closed
+    ? [...path.segs, { a: path.segs[path.segs.length-1].b, b: path.segs[0].a, len: path.closedExtra }]
+    : path.segs;
+  for (const s of segs) {
+    if (d <= s.len) {
+      const f = s.len === 0 ? 0 : d / s.len;
+      return { x: s.a[0] + (s.b[0]-s.a[0])*f, y: s.a[1] + (s.b[1]-s.a[1])*f };
+    }
+    d -= s.len;
+  }
+  const last = segs[segs.length-1];
+  return { x: last.b[0], y: last.b[1] };
+}
+
+const BEHAVIORS = {
+  patrol(e, t) {
+    const L = e.path.total, cycle = 2 * L;
+    let d = (e.phase * cycle + t * e.speed) % cycle;
+    if (d > L) d = cycle - d;
+    return pointAlong(e.path, d, false);
+  },
+  loop(e, t) {
+    const L = e.path.total + e.path.closedExtra;
+    const d = (e.phase * L + t * e.speed) % L;
+    return pointAlong(e.path, d, true);
+  },
+  circle(e, t) {
+    const r = e.radius * TILE;
+    const a = e.angle + e.dir * (e.speed / r) * t;
+    return { x: e.cx * TILE + Math.cos(a) * r, y: e.cy * TILE + Math.sin(a) * r };
+  }
+  // 'bounce' is integrated in stepBounce() because it depends on wall geometry.
+};
+
+/* ============================================================
+   5. ENGINE — grid queries and collision
+   ============================================================ */
+let grid = [], startPos = { x: 0, y: 0 }, exitTiles = [];
+
+function loadGrid(level) {
+  grid = level.grid;
+  exitTiles = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const ch = grid[r][c];
+    if (ch === 'S') startPos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE };
+    if (ch === 'E') exitTiles.push({ c, r });
+  }
+}
+function isWall(c, r) {
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return true;
+  return grid[r][c] === '#';
+}
+// Move a square (cx,cy,half) by (dx,dy) with axis-separated wall collision.
+function moveSquare(cx, cy, half, dx, dy) {
+  cx += dx;
+  {
+    const minC = Math.floor((cx - half) / TILE), maxC = Math.floor((cx + half - 0.01) / TILE);
+    const minR = Math.floor((cy - half) / TILE), maxR = Math.floor((cy + half - 0.01) / TILE);
+    for (let r = minR; r <= maxR; r++) for (let c = minC; c <= maxC; c++) {
+      if (isWall(c, r)) {
+        if (dx > 0) cx = c * TILE - half;
+        else if (dx < 0) cx = (c + 1) * TILE + half;
+      }
+    }
+  }
+  cy += dy;
+  {
+    const minC = Math.floor((cx - half) / TILE), maxC = Math.floor((cx + half - 0.01) / TILE);
+    const minR = Math.floor((cy - half) / TILE), maxR = Math.floor((cy + half - 0.01) / TILE);
+    for (let r = minR; r <= maxR; r++) for (let c = minC; c <= maxC; c++) {
+      if (isWall(c, r)) {
+        if (dy > 0) cy = r * TILE - half;
+        else if (dy < 0) cy = (r + 1) * TILE + half;
+      }
+    }
+  }
+  return { x: cx, y: cy };
+}
+function circleHitsSquare(ex, ey, er, px, py, half) {
+  const nx = Math.max(px - half, Math.min(ex, px + half));
+  const ny = Math.max(py - half, Math.min(ey, py + half));
+  return (ex - nx) ** 2 + (ey - ny) ** 2 < er * er;
+}
+function circleHitsWall(x, y, r) {
+  const minC = Math.floor((x - r) / TILE), maxC = Math.floor((x + r) / TILE);
+  const minR = Math.floor((y - r) / TILE), maxR = Math.floor((y + r) / TILE);
+  for (let rr = minR; rr <= maxR; rr++) for (let cc = minC; cc <= maxC; cc++) {
+    if (isWall(cc, rr)) {
+      const nx = Math.max(cc * TILE, Math.min(x, (cc + 1) * TILE));
+      const ny = Math.max(rr * TILE, Math.min(y, (rr + 1) * TILE));
+      if ((x - nx) ** 2 + (y - ny) ** 2 < r * r) return true;
+    }
+  }
+  return false;
+}
+
+/* ============================================================
+   6. GAME — state machine
+   States: 'menu' | 'ready' | 'playing' | 'dead' | 'complete' | 'win'
+   ============================================================ */
+const game = {
+  state: 'menu',
+  levelIndex: 0,
+  deaths: 0,
+  levelTime: 0,
+  stateTimer: 0,
+  player: { x: 0, y: 0 },
+  enemies: [],
+  paused: false
+};
+
+function enemySpeedMult() {
+  return DIFFICULTY_MULT[settings.difficulty] * Math.pow(RAMP_FACTOR[settings.ramp], game.levelIndex);
+}
+
+function initLevel(idx) {
+  game.levelIndex = idx;
+  const lvl = LEVELS[idx];
+  loadGrid(lvl);
+  const mult = enemySpeedMult();
+  game.enemies = lvl.enemies.map(spec => {
+    const e = Object.assign({}, spec);
+    e.speed = spec.speed * mult;
+    e.r = spec.r || ENEMY_RADIUS;
+    if (e.pts) e.path = buildPath(e.pts);
+    if (e.type === 'bounce') {
+      const n = Math.hypot(e.dir[0], e.dir[1]);
+      e.vx = e.dir[0] / n * e.speed; e.vy = e.dir[1] / n * e.speed;
+      e.px = e.x * TILE; e.py = e.y * TILE;
+      e.startPx = e.px; e.startPy = e.py; e.startVx = e.vx; e.startVy = e.vy;
+    }
+    return e;
+  });
+  resetRun();
+  updateHud();
+}
+function resetRun() {
+  game.player.x = startPos.x; game.player.y = startPos.y;
+  game.levelTime = 0;
+  for (const e of game.enemies) {
+    if (e.type === 'bounce') { e.px = e.startPx; e.py = e.startPy; e.vx = e.startVx; e.vy = e.startVy; }
+  }
+  game.state = 'ready';
+}
+
+function stepBounce(e, dt) {
+  let nx = e.px + e.vx * dt;
+  if (circleHitsWall(nx, e.py, e.r)) { e.vx = -e.vx; nx = e.px + e.vx * dt; }
+  e.px = nx;
+  let ny = e.py + e.vy * dt;
+  if (circleHitsWall(e.px, ny, e.r)) { e.vy = -e.vy; ny = e.py + e.vy * dt; }
+  e.py = ny;
+}
+function enemyPos(e) {
+  if (e.type === 'bounce') return { x: e.px, y: e.py };
+  return BEHAVIORS[e.type](e, game.levelTime);
+}
+
+function update(dt) {
+  if (game.state === 'dead') {
+    game.stateTimer -= dt * 1000;
+    if (game.stateTimer <= 0) resetRun();
+    return;
+  }
+  if (game.state === 'complete') {
+    game.stateTimer -= dt * 1000;
+    if (game.stateTimer <= 0) {
+      if (game.levelIndex + 1 >= LEVELS.length) { winGame(); }
+      else { initLevel(game.levelIndex + 1); saveProgress(); }
+    }
+    return;
+  }
+  if (game.state !== 'playing') return;
+
+  game.levelTime += dt;
+
+  // player
+  let dx = 0, dy = 0;
+  if (keys.left) dx -= 1; if (keys.right) dx += 1;
+  if (keys.up) dy -= 1;   if (keys.down) dy += 1;
+  if (dx || dy) {
+    const n = Math.hypot(dx, dy);
+    const p = moveSquare(game.player.x, game.player.y, PLAYER_SIZE / 2,
+                         dx / n * PLAYER_SPEED * dt, dy / n * PLAYER_SPEED * dt);
+    game.player.x = p.x; game.player.y = p.y;
+  }
+
+  // enemies
+  for (const e of game.enemies) if (e.type === 'bounce') stepBounce(e, dt);
+
+  // collisions
+  const half = PLAYER_SIZE / 2;
+  for (const e of game.enemies) {
+    const p = enemyPos(e);
+    if (circleHitsSquare(p.x, p.y, e.r, game.player.x, game.player.y, half)) { die(); return; }
+  }
+
+  // exit check
+  const pc = Math.floor(game.player.x / TILE), pr = Math.floor(game.player.y / TILE);
+  for (const t of exitTiles) {
+    if (t.c === pc && t.r === pr) {
+      game.state = 'complete'; game.stateTimer = COMPLETE_PAUSE; return;
+    }
+  }
+}
+function die() {
+  game.deaths++;
+  updateHud();
+  saveProgress();
+  game.state = 'dead';
+  game.stateTimer = DEATH_PAUSE;
+}
+function winGame() {
+  game.state = 'win';
+  clearProgress();
+  document.getElementById('winLevels').textContent = LEVELS.length;
+  document.getElementById('winDeaths').textContent = game.deaths;
+  const q = game.deaths === 0 ? 'A flawless run. Suspiciously flawless.'
+    : game.deaths < 10 ? 'Respectable. The enemies barely knew you.'
+    : game.deaths < 30 ? 'You died a healthy amount. Character-building.'
+    : 'The enemies would like to thank you for your generous donations.';
+  document.getElementById('winQuip').textContent = q;
+  showScreen('winScreen');
+}
+
+/* ============================================================
+   7. RENDER
+   ============================================================ */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function draw() {
+  const T = THEMES[settings.theme];
+  // floor + walls
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (grid[r][c] === '#') {
+      ctx.fillStyle = T.wall;
+      ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+      ctx.fillStyle = T.wallEdge;
+      ctx.fillRect(c * TILE, r * TILE + TILE - 5, TILE, 5);
+    } else {
+      ctx.fillStyle = (r + c) % 2 === 0 ? T.floorA : T.floorB;
+      ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+    }
+  }
+  // start tile
+  const sc = Math.floor(startPos.x / TILE), sr = Math.floor(startPos.y / TILE);
+  ctx.fillStyle = T.start;
+  ctx.fillRect(sc * TILE + 3, sr * TILE + 3, TILE - 6, TILE - 6);
+  // exit tiles (pulse)
+  const pulse = 0.65 + 0.35 * Math.sin(performance.now() / 250);
+  for (const t of exitTiles) {
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = T.exit;
+    ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = T.exit;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+  }
+  // enemies
+  for (const e of game.enemies) {
+    const p = enemyPos(e);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, e.r + 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, e.r, 0, Math.PI * 2);
+    ctx.fillStyle = T.enemy;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, e.r * 0.42, 0, Math.PI * 2);
+    ctx.fillStyle = T.enemyCore;
+    ctx.fill();
+  }
+  // player
+  const half = PLAYER_SIZE / 2;
+  const pcolor = settings.playerColor || T.player;
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(game.player.x - half + 2, game.player.y - half + 3, PLAYER_SIZE, PLAYER_SIZE);
+  ctx.fillStyle = pcolor;
+  ctx.fillRect(game.player.x - half, game.player.y - half, PLAYER_SIZE, PLAYER_SIZE);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillRect(game.player.x - 6, game.player.y - 5, 4, 5);
+  ctx.fillRect(game.player.x + 2, game.player.y - 5, 4, 5);
+
+  // state overlays
+  if (game.state === 'ready') {
+    overlay(`ROOM ${game.levelIndex + 1}: ${LEVELS[game.levelIndex].name.toUpperCase()}`, 'Press any movement key to go');
+  } else if (game.state === 'dead') {
+    ctx.fillStyle = 'rgba(200,30,30,0.35)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else if (game.state === 'complete') {
+    ctx.fillStyle = 'rgba(80,200,110,0.3)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    overlay('ROOM CLEAR', '');
+  }
+}
+function overlay(title, sub) {
+  ctx.fillStyle = 'rgba(10,12,30,0.55)';
+  ctx.fillRect(0, canvas.height / 2 - 60, canvas.width, 120);
+  ctx.fillStyle = THEMES[settings.theme].overlayText;
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 30px "Segoe UI", sans-serif';
+  ctx.fillText(title, canvas.width / 2, canvas.height / 2 - 8);
+  if (sub) {
+    ctx.font = '16px "Segoe UI", sans-serif';
+    ctx.fillText(sub, canvas.width / 2, canvas.height / 2 + 26);
+  }
+}
+
+/* ============================================================
+   8. INPUT
+   ============================================================ */
+const keys = { up: false, down: false, left: false, right: false };
+const KEYMAP = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+  w: 'up', s: 'down', a: 'left', d: 'right',
+  W: 'up', S: 'down', A: 'left', D: 'right'
+};
+document.addEventListener('keydown', (ev) => {
+  if (KEYMAP[ev.key] !== undefined) ev.preventDefault();
+  if (game.state === 'ready' && KEYMAP[ev.key] && !game.paused) {
+    game.state = 'playing';
+  }
+  if (KEYMAP[ev.key]) keys[KEYMAP[ev.key]] = true;
+  if (ev.key === 'Escape' && (game.state === 'playing' || game.state === 'ready')) togglePause();
+  if ((ev.key === 'r' || ev.key === 'R') && game.state === 'playing' && !game.paused) resetRun();
+});
+document.addEventListener('keyup', (ev) => {
+  if (KEYMAP[ev.key]) keys[KEYMAP[ev.key]] = false;
+});
+window.addEventListener('blur', () => {
+  keys.up = keys.down = keys.left = keys.right = false;
+  if (game.state === 'playing' && !game.paused) togglePause();
+});
+function togglePause() {
+  game.paused = !game.paused;
+  document.getElementById('pauseOverlay').classList.toggle('active', game.paused);
+}
+
+/* ============================================================
+   9. UI, SETTINGS, SAVE
+   ============================================================ */
+const settings = { difficulty: 'normal', ramp: 'standard', theme: 'classic', playerColor: null };
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function applyTheme() {
+  const T = THEMES[settings.theme];
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--bg', T.bg);
+  rootStyle.setProperty('--panel', T.panel);
+  rootStyle.setProperty('--text', T.text);
+  rootStyle.setProperty('--btn', T.btn);
+  rootStyle.setProperty('--btnText', T.btnText);
+}
+function updateHud() {
+  document.getElementById('hudLevel').textContent = game.levelIndex + 1;
+  document.getElementById('hudTotal').textContent = LEVELS.length;
+  document.getElementById('hudName').textContent = LEVELS[game.levelIndex].name;
+  document.getElementById('hudDeaths').textContent = game.deaths;
+}
+
+// localStorage may be unavailable (private mode etc.) — degrade gracefully.
+function store(obj) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(obj)); } catch (e) {} }
+function load() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch (e) { return {}; } }
+
+function saveProgress() {
+  store({ settings, progress: { level: game.levelIndex, deaths: game.deaths } });
+}
+function saveSettingsOnly() {
+  const cur = load();
+  store({ settings, progress: cur.progress || null });
+}
+function clearProgress() {
+  store({ settings, progress: null });
+  refreshMenu();
+}
+function refreshMenu() {
+  const data = load();
+  const btn = document.getElementById('btnResume');
+  if (data.progress && data.progress.level > 0) {
+    btn.style.display = '';
+    document.getElementById('resumeLevel').textContent = data.progress.level + 1;
+  } else if (data.progress && data.progress.level === 0 && data.progress.deaths > 0) {
+    btn.style.display = '';
+    document.getElementById('resumeLevel').textContent = 1;
+  } else {
+    btn.style.display = 'none';
+  }
+  document.getElementById('menuStats').textContent =
+    data.progress ? `A run is in progress. Deaths so far: ${data.progress.deaths}` : '';
+}
+
+// wire up UI
+document.getElementById('btnPlay').addEventListener('click', () => {
+  game.deaths = 0;
+  initLevel(0);
+  saveProgress();
+  showScreen('gameScreen');
+});
+document.getElementById('btnResume').addEventListener('click', () => {
+  const data = load();
+  game.deaths = (data.progress && data.progress.deaths) || 0;
+  initLevel((data.progress && data.progress.level) || 0);
+  showScreen('gameScreen');
+});
+document.getElementById('btnSettings').addEventListener('click', () => showScreen('settingsScreen'));
+document.getElementById('btnHowTo').addEventListener('click', () => showScreen('howtoScreen'));
+document.getElementById('btnSettingsBack').addEventListener('click', () => { showScreen('menuScreen'); refreshMenu(); });
+document.getElementById('btnHowToBack').addEventListener('click', () => showScreen('menuScreen'));
+document.getElementById('btnWinMenu').addEventListener('click', () => { showScreen('menuScreen'); refreshMenu(); });
+document.getElementById('btnResumeGame').addEventListener('click', togglePause);
+document.getElementById('btnQuitToMenu').addEventListener('click', () => {
+  if (game.paused) togglePause();
+  game.state = 'menu';
+  showScreen('menuScreen');
+  refreshMenu();
+});
+
+document.getElementById('selDifficulty').addEventListener('change', (e) => {
+  settings.difficulty = e.target.value; saveSettingsOnly();
+});
+document.getElementById('selRamp').addEventListener('change', (e) => {
+  settings.ramp = e.target.value; saveSettingsOnly();
+});
+document.getElementById('selTheme').addEventListener('change', (e) => {
+  settings.theme = e.target.value; applyTheme(); saveSettingsOnly();
+});
+document.getElementById('playerColor').addEventListener('input', (e) => {
+  settings.playerColor = e.target.value; saveSettingsOnly();
+});
+document.getElementById('btnResetColor').addEventListener('click', () => {
+  settings.playerColor = null; saveSettingsOnly();
+  document.getElementById('playerColor').value = THEMES[settings.theme].player;
+});
+
+// restore saved settings on load
+(function init() {
+  const data = load();
+  if (data.settings) {
+    Object.assign(settings, data.settings);
+    document.getElementById('selDifficulty').value = settings.difficulty;
+    document.getElementById('selRamp').value = settings.ramp;
+    document.getElementById('selTheme').value = settings.theme;
+    if (settings.playerColor) document.getElementById('playerColor').value = settings.playerColor;
+  }
+  applyTheme();
+  refreshMenu();
+  loadGrid(LEVELS[0]); // so canvas has something if drawn early
+})();
+
+/* main loop */
+let lastTime = performance.now();
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  if (document.getElementById('gameScreen').classList.contains('active') && !game.paused) {
+    update(dt);
+  }
+  if (document.getElementById('gameScreen').classList.contains('active')) draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
