@@ -172,6 +172,8 @@
     <div><span class="kbd">Esc</span> pauses. <span class="kbd">R</span> restarts the room. Progress saves automatically.</div>
     <div>Some exits are <b>locked</b> — grab every glowing key space in the room first, then the exit opens. Dying re-locks everything.</div>
     <div><b>Watcher</b> enemies (the ones with an eye) charge when they can see you. Break their line of sight behind a wall and they give up and head home.</div>
+    <div>Watchers with a <b>closed eye</b> are asleep — until you grab a key. Then they wake and hunt you for the rest of the room, walls or no walls between you.</div>
+    <div><b>Teleporters</b>: step on a solid lettered ring and you're instantly moved to the matching dashed ring. One-way, and enemies can't follow. Some rooms can only be crossed this way.</div>
     <div>Feeling confident? The <b>You Won't</b> and <b>You Can't</b> difficulties send you back to Room 1 on every death — and in You Can't, the walls kill you too.</div>
     <button id="btnHowToBack" style="margin-top:6px">Back</button>
   </div>
@@ -628,6 +630,95 @@ const LEVELS = [
     { type:'chaser', x:16, y:5,  sight:5.5, speed:115 },
     { type:'patrol', pts:[[18.0,2.0],[18.0,10.5]], speed:105, phase:0.50 }
   ]
+},
+{
+  // Level design by Jay. Grab the key on the far right — three sleeping trackers
+  // wake the moment you do. Two ways back to the exit nook: straight down the
+  // middle (short, guarded by three stacked door guards + the arc sweepers), or
+  // the long loop around the block (skips the stacked guards, not the arcs).
+  name: 'The Heist',
+  grid: [
+    '#####################',
+    '#S..#...............#',
+    '#...#...............#',
+    '#...#...####..#.....#',
+    '#...#...####..#.....#',
+    '#...#...####..#.....#',
+    '#...#.........#.....#',
+    '#...#.........#.....#',
+    '#...#.........#.....#',
+    '#...#....###..#..K..#',
+    '#........#....#.....#',
+    '#.........E...#.....#',
+    '#####################'
+  ],
+  enemies: [
+    // bottom-of-left-wall guard and top-of-right-wall guard
+    { type:'patrol', pts:[[4.5,10.4],[4.5,11.5]],  speed:60,  phase:0.00 },
+    { type:'patrol', pts:[[14.5,1.5],[14.5,2.6]],  speed:60,  phase:0.50 },
+    // outer loop: upside-down L around the block, 4 patrols
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.00 },
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.25 },
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.50 },
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.75 },
+    // inner left loop: vertical rectangle, 2 patrols
+    { type:'loop', pts:[[5.7,3.0],[7.3,3.0],[7.3,9.8],[5.7,9.8]], speed:110, phase:0.00 },
+    { type:'loop', pts:[[5.7,3.0],[7.3,3.0],[7.3,9.8],[5.7,9.8]], speed:110, phase:0.50 },
+    // top inner loop: small horizontal rectangle above the block, 1 patrol
+    { type:'loop', pts:[[8.0,1.6],[11.2,1.6],[11.2,2.4],[8.0,2.4]], speed:105, phase:0.30 },
+    // three stacked guards in the middle corridor (route 1 only)
+    { type:'patrol', pts:[[12.3,3.5],[13.7,3.5]],  speed:60,  phase:0.00 },
+    { type:'patrol', pts:[[12.3,5.5],[13.7,5.5]],  speed:60,  phase:0.33 },
+    { type:'patrol', pts:[[12.3,7.5],[13.7,7.5]],  speed:60,  phase:0.66 },
+    // three concentric arc sweepers guarding the nook approach (both routes)
+    { type:'arc', cx:12.0, cy:10.0, radius:0.9, a0:-1.257, a1:2.618, speed:90, phase:0.00 },
+    { type:'arc', cx:12.0, cy:10.0, radius:1.3, a0:-1.257, a1:2.618, speed:90, phase:0.40 },
+    { type:'arc', cx:12.0, cy:10.0, radius:1.7, a0:-1.257, a1:2.618, speed:90, phase:0.80 },
+    // the sleepers: wake when the key is grabbed, then never stop
+    { type:'chaser', x:16, y:11, keyActivated:true, speed:100 },
+    { type:'chaser', x:17, y:11, keyActivated:true, speed:100 },
+    { type:'chaser', x:18, y:11, keyActivated:true, speed:100 }
+  ]
+},
+{
+  // Level design by Jay. One-way teleporters (a→A, b→B, c→C, d→D), player-only.
+  // Three zones are fully sealed — teleporting is the ONLY way in or out.
+  // Chain: A1(top right) → C-box → B1 → F-section → key → C1 → main floor
+  // (four sleepers wake) → back to A1 → C-box again → D1 → exit vault.
+  name: 'The Relay',
+  grid: [
+    '#####################',
+    '#S.................a#',
+    '##############..#####',
+    '#...............#d..#',
+    '#######.........#...#',
+    '#B...c#.........#..b#',
+    '#.....#.........#...#',
+    '#..####.........#A..#',
+    '#.....#.........#####',
+    '###...#........######',
+    '#.....#........#D...#',
+    '#K....#C.......#...E#',
+    '#####################'
+  ],
+  enemies: [
+    { type:'patrol', pts:[[14.4,2.5],[15.6,2.5]],  speed:60,  phase:0.00 }, // gap doorway guard
+    { type:'patrol', pts:[[15.5,1.5],[18.4,1.5]],  speed:80,  phase:0.50 }, // A1 corridor guard
+    { type:'patrol', pts:[[14.0,3.4],[14.0,8.5]],  speed:90,  phase:0.30 }, // main-floor vertical guard
+    // backwards-F section: the two key guards
+    { type:'patrol', pts:[[1.4,7.5],[2.6,7.5]],    speed:60,  phase:0.00 }, // arm-gap guard
+    { type:'patrol', pts:[[3.3,10.5],[5.5,10.5]],  speed:60,  phase:0.50 }, // key-nook guard
+    // exit vault: two vertical bouncing guards between D2 and the exit
+    { type:'patrol', pts:[[17.5,10.4],[17.5,11.5]],speed:60,  phase:0.00 },
+    { type:'patrol', pts:[[18.5,10.4],[18.5,11.5]],speed:60,  phase:0.50 },
+    // C-box: the goalpost/Y patrol — two prongs on the right wall, stem to the spine
+    { type:'patrol', pts:[[19.4,3.6],[18.0,5.0],[17.3,5.0],[18.0,5.0],[19.4,6.6]], speed:100, phase:0.00 },
+    // four sleepers on the main floor, in a line beneath the top wall
+    { type:'chaser', x:8.5,  y:3.5, keyActivated:true, speed:100 },
+    { type:'chaser', x:10.5, y:3.5, keyActivated:true, speed:100 },
+    { type:'chaser', x:12.5, y:3.5, keyActivated:true, speed:100 },
+    { type:'chaser', x:14.5, y:3.5, keyActivated:true, speed:100 }
+  ]
 }
 ];
 
@@ -675,6 +766,17 @@ const BEHAVIORS = {
     const r = e.radius * TILE;
     const a = e.angle + e.dir * (e.speed / r) * t;
     return { x: e.cx * TILE + Math.cos(a) * r, y: e.cy * TILE + Math.sin(a) * r };
+  },
+  // arc: ping-pongs along a circular arc between angles a0 and a1 (radians).
+  // Stack several with the same angles and different radii for concentric sweeps.
+  arc(e, t) {
+    const r = e.radius * TILE;
+    const arcLen = Math.abs(e.a1 - e.a0) * r;
+    const cycle = 2 * arcLen;
+    let d = (e.phase * cycle + t * e.speed) % cycle;
+    if (d > arcLen) d = cycle - d;
+    const a = e.a0 + (e.a1 > e.a0 ? 1 : -1) * (d / r);
+    return { x: e.cx * TILE + Math.cos(a) * r, y: e.cy * TILE + Math.sin(a) * r };
   }
   // 'bounce' is integrated in stepBounce() because it depends on wall geometry.
 };
@@ -683,15 +785,18 @@ const BEHAVIORS = {
    5. ENGINE — grid queries and collision
    ============================================================ */
 let grid = [], startPos = { x: 0, y: 0 }, exitTiles = [], keyTiles = [];
+let tpPads = {}, tpExits = {}; // one-way teleporters: 'a'..'d' pads send the player to 'A'..'D'
 
 function loadGrid(level) {
   grid = level.grid;
-  exitTiles = []; keyTiles = [];
+  exitTiles = []; keyTiles = []; tpPads = {}; tpExits = {};
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const ch = grid[r][c];
     if (ch === 'S') startPos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE };
     if (ch === 'E') exitTiles.push({ c, r });
     if (ch === 'K') keyTiles.push({ c, r }); // key space: all must be touched to unlock the exit
+    if (ch >= 'a' && ch <= 'd') tpPads[ch] = { c, r };   // teleporter entry
+    if (ch >= 'A' && ch <= 'D') tpExits[ch] = { c, r };  // teleporter destination (plain floor)
   }
 }
 function exitUnlocked() {
@@ -840,8 +945,15 @@ function hasLOS(x1, y1, x2, y2) {
 }
 function stepChaser(e, dt) {
   const px = game.player.x, py = game.player.y;
-  const dist = Math.hypot(px - e.px, py - e.py);
-  e.chasing = dist < (e.sight || 5.5) * TILE && hasLOS(e.px, e.py, px, py);
+  if (e.keyActivated) {
+    // key-activated tracker: dormant until any key is grabbed, then hunts
+    // relentlessly — no line-of-sight required (walls still block it physically).
+    if (game.keysGot.size === 0) { e.chasing = false; return; }
+    e.chasing = true;
+  } else {
+    const dist = Math.hypot(px - e.px, py - e.py);
+    e.chasing = dist < (e.sight || 5.5) * TILE && hasLOS(e.px, e.py, px, py);
+  }
   const tx = e.chasing ? px : e.hx, ty = e.chasing ? py : e.hy;
   const sp = e.chasing ? e.speed : e.speed * 0.6;
   const dd = Math.hypot(tx - e.px, ty - e.py);
@@ -902,6 +1014,22 @@ function update(dt) {
   for (const e of game.enemies) {
     const p = enemyPos(e);
     if (circleHitsSquare(p.x, p.y, e.r, game.player.x, game.player.y, half)) { die(); return; }
+  }
+
+  // teleporters (player-only, one-way)
+  {
+    const tc = Math.floor(game.player.x / TILE), tr = Math.floor(game.player.y / TILE);
+    for (const [pad, pos] of Object.entries(tpPads)) {
+      if (pos.c === tc && pos.r === tr) {
+        const dest = tpExits[pad.toUpperCase()];
+        if (dest) {
+          game.player.x = (dest.c + 0.5) * TILE;
+          game.player.y = (dest.r + 0.5) * TILE;
+          game.tpFx = { x: game.player.x, y: game.player.y, until: performance.now() + 400 };
+        }
+        break;
+      }
+    }
   }
 
   // key pickup + exit check
@@ -976,6 +1104,36 @@ function draw() {
     ctx.fillStyle = T.key;
     ctx.fill();
   }
+  // teleporter pads: solid ring = entry, dashed ring = where it drops you
+  const TP_COLORS = { a:'#8b5cf6', b:'#06b6d4', c:'#f97316', d:'#ec4899' };
+  ctx.font = 'bold 13px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const [pad, pos] of Object.entries(tpPads)) {
+    const x = (pos.c + 0.5) * TILE, y = (pos.r + 0.5) * TILE;
+    ctx.strokeStyle = TP_COLORS[pad]; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 13 + 1.5 * pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = TP_COLORS[pad];
+    ctx.fillText(pad.toUpperCase(), x, y + 1);
+  }
+  for (const [exitCh, pos] of Object.entries(tpExits)) {
+    const x = (pos.c + 0.5) * TILE, y = (pos.r + 0.5) * TILE;
+    ctx.strokeStyle = TP_COLORS[exitCh.toLowerCase()]; ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = TP_COLORS[exitCh.toLowerCase()];
+    ctx.fillText(exitCh, x, y + 1);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textBaseline = 'alphabetic';
+  if (game.tpFx && performance.now() < game.tpFx.until) {
+    const f = 1 - (game.tpFx.until - performance.now()) / 400;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+    ctx.globalAlpha = 1 - f;
+    ctx.beginPath(); ctx.arc(game.tpFx.x, game.tpFx.y, 14 + f * 26, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   // exit tiles (locked = grey with a padlock; unlocked = pulsing)
   const unlocked = exitUnlocked();
   for (const t of exitTiles) {
@@ -1013,12 +1171,21 @@ function draw() {
     ctx.fillStyle = T.enemyCore;
     ctx.fill();
     if (e.type === 'chaser') {
-      // pupil looks toward the player; alert ring while charging
-      const a = Math.atan2(game.player.y - p.y, game.player.x - p.x);
-      ctx.beginPath();
-      ctx.arc(p.x + Math.cos(a) * e.r * 0.35, p.y + Math.sin(a) * e.r * 0.35, e.r * 0.25, 0, Math.PI * 2);
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fill();
+      const dormant = e.keyActivated && game.keysGot.size === 0;
+      if (dormant) {
+        // sleeping: closed eye
+        ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.x - e.r * 0.4, p.y); ctx.lineTo(p.x + e.r * 0.4, p.y);
+        ctx.stroke();
+      } else {
+        // pupil looks toward the player; alert ring while charging
+        const a = Math.atan2(game.player.y - p.y, game.player.x - p.x);
+        ctx.beginPath();
+        ctx.arc(p.x + Math.cos(a) * e.r * 0.35, p.y + Math.sin(a) * e.r * 0.35, e.r * 0.25, 0, Math.PI * 2);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fill();
+      }
       if (e.chasing) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, e.r + 5, 0, Math.PI * 2);
