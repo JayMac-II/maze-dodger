@@ -773,7 +773,9 @@ const LEVELS = [
     { type:'loop', pts:[[2.5,2.5],[7.5,2.5],[7.5,10.5],[2.5,10.5]], speed:100, phase:0.30 },
     // right half: a vertical sweeper past the portal, and the hunter
     { type:'patrol', pts:[[13.5,1.5],[13.5,11.0]], speed:90, phase:0.60 },
-    { type:'hunter', x:16.5, y:2.5, sight:7, speed:78, memory:1.5 }
+    // posted in open ground with verified line of sight to the portal landing:
+    // it WILL spot you the moment you arrive — the chase starts immediately
+    { type:'hunter', x:17.5, y:4.5, sight:7, speed:78, memory:1.5 }
   ]
 }
 ];
@@ -1160,6 +1162,7 @@ function update(dt) {
       const p = twoWay[k];
       if (p && Math.hypot(game.player.x - (p.c + 0.5) * TILE, game.player.y - (p.r + 0.5) * TILE) < 2.5 * TILE) {
         game.state = 'tutorial';
+        game.tutorialAt = performance.now();
         return;
       }
     }
@@ -1186,8 +1189,9 @@ function die() {
   updateHud();
   saveProgress();
   game.state = 'dead';
-  game.stateTimer = (isHardcore() && game.levelIndex > 0) ? 1100
-                  : game.tauntText ? 1400 : DEATH_PAUSE;
+  game.dieAt = performance.now();
+  game.stateTimer = (isHardcore() && game.levelIndex > 0) ? (game.tauntText ? 3000 : 1100)
+                  : game.tauntText ? 3400 : DEATH_PAUSE;
 }
 function winGame() {
   game.state = 'win';
@@ -1455,10 +1459,17 @@ const KEYMAP = {
 document.addEventListener('keydown', (ev) => {
   if (KEYMAP[ev.key] !== undefined) ev.preventDefault();
   if (game.state === 'tutorial') {
+    // held movement keys auto-repeat keydown ~30x/sec — without these guards the
+    // tutorial dismissed itself before a single frame was seen
+    if (ev.repeat || performance.now() - (game.tutorialAt || 0) < 600) return;
     settings.tips.twoway = true;
     saveSettingsOnly();
     game.state = 'playing';
     return;
+  }
+  if (game.state === 'dead' && game.tauntText) {
+    // fresh keypress after a beat skips the taunt pause
+    if (!ev.repeat && performance.now() - (game.dieAt || 0) > 700) game.stateTimer = Math.min(game.stateTimer, 120);
   }
   if (game.state === 'ready' && KEYMAP[ev.key] && !game.paused) {
     game.state = 'playing';
