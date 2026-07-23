@@ -641,10 +641,10 @@ const LEVELS = [
     '#####################',
     '#S..#...............#',
     '#...#...............#',
+    '#...#...............#',
     '#...#...####..#.....#',
     '#...#...####..#.....#',
     '#...#...####..#.....#',
-    '#...#.........#.....#',
     '#...#.........#.....#',
     '#...#.........#.....#',
     '#...#.........#..K..#',
@@ -656,14 +656,15 @@ const LEVELS = [
     // bottom-of-left-wall guard and top-of-right-wall guard
     { type:'patrol', pts:[[4.5,10.4],[4.5,11.5]],  speed:60,  phase:0.00 },
     { type:'patrol', pts:[[14.5,1.5],[14.5,2.6]],  speed:60,  phase:0.50 },
-    // outer loop: upside-down L around the block, 4 patrols
-    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.00 },
-    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.25 },
-    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.50 },
-    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,2.6],[11.5,2.6]], speed:115, phase:0.75 },
-    // two stacked guards in the middle corridor
-    { type:'patrol', pts:[[12.3,3.5],[13.7,3.5]],  speed:60,  phase:0.00 },
-    { type:'patrol', pts:[[12.3,5.5],[13.7,5.5]],  speed:60,  phase:0.50 },
+    // outer loop: upside-down L around the block, 4 patrols — inner legs extended
+    // one row down to keep hugging the relocated block's top edge
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,3.6],[11.5,3.6]], speed:115, phase:0.00 },
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,3.6],[11.5,3.6]], speed:115, phase:0.25 },
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,3.6],[11.5,3.6]], speed:115, phase:0.50 },
+    { type:'loop', pts:[[11.5,1.4],[5.6,1.4],[5.6,10.6],[7.4,10.6],[7.4,3.6],[11.5,3.6]], speed:115, phase:0.75 },
+    // two stacked guards in the middle corridor (moved down with the block)
+    { type:'patrol', pts:[[12.3,4.5],[13.7,4.5]],  speed:60,  phase:0.00 },
+    { type:'patrol', pts:[[12.3,6.5],[13.7,6.5]],  speed:60,  phase:0.50 },
     // the arc blade: top-left quarter sweep from the L-wall top to the right wall's
     // face — the only door to the exit. Speeds scale with radius so all three move
     // in angular lockstep: one blade, one pattern.
