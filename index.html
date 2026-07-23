@@ -116,8 +116,12 @@
         <option value="easy">Easy</option>
         <option value="normal" selected>Normal</option>
         <option value="hard">Hard</option>
+        <option value="youwont">You Won't</option>
+        <option value="youcant">You Can't</option>
       </select>
     </div>
+    <div class="small">You Won't: Hard speeds, but any death sends you back to Room 1.<br>
+    You Can't: same — and touching a wall kills you too. Good luck with corners.</div>
     <div class="row">
       <label>Difficulty ramp</label>
       <select id="selRamp">
@@ -143,6 +147,16 @@
         <button class="secondary" id="btnResetColor" style="padding:6px 12px; font-size:13px">Theme default</button>
       </div>
     </div>
+    <div class="row">
+      <label>Player icon</label>
+      <div style="display:flex; gap:8px; align-items:center">
+        <button class="secondary" id="btnUploadIcon" style="padding:6px 12px; font-size:13px">Upload image…</button>
+        <button class="secondary" id="btnRemoveIcon" style="padding:6px 12px; font-size:13px; display:none">Remove</button>
+        <canvas id="iconPreview" width="32" height="32" style="border-radius:6px; box-shadow:none; display:none"></canvas>
+        <input type="file" id="iconFile" accept="image/*" style="display:none">
+      </div>
+    </div>
+    <div class="small">Your image replaces the colored square in-game. It's stored in this browser only.</div>
     <button id="btnSettingsBack">Back</button>
   </div>
 </div>
@@ -156,6 +170,7 @@
     <div>Touch an enemy and you're reset to the start of the room. The enemies reset too — their patterns are the same every attempt, so every death teaches you something.</div>
     <div>Each room's enemies move differently: some pace back and forth, some orbit, some follow the corridors, some ricochet around.</div>
     <div><span class="kbd">Esc</span> pauses. <span class="kbd">R</span> restarts the room. Progress saves automatically.</div>
+    <div>Feeling confident? The <b>You Won't</b> and <b>You Can't</b> difficulties send you back to Room 1 on every death — and in You Can't, the walls kill you too.</div>
     <button id="btnHowToBack" style="margin-top:6px">Back</button>
   </div>
 </div>
@@ -200,8 +215,11 @@ const ENEMY_RADIUS = 9;          // px, default
 const DEATH_PAUSE = 550;         // ms of red flash after dying
 const COMPLETE_PAUSE = 700;      // ms of fade after clearing a room
 
-const DIFFICULTY_MULT = { easy: 0.75, normal: 1.0, hard: 1.28 };
-const RAMP_FACTOR     = { gentle: 1.03, standard: 1.065, steep: 1.11 };
+const DIFFICULTY_MULT = { easy: 0.75, normal: 1.0, hard: 1.15, youwont: 1.15, youcant: 1.15 };
+const RAMP_FACTOR     = { gentle: 1.02, standard: 1.05, steep: 1.08 };
+// Enemies can NEVER move faster than 85% of the player. This guarantees every
+// level is winnable on every setting — difficulty tightens gaps, it doesn't cheat.
+const MAX_ENEMY_SPEED = PLAYER_SPEED * 0.85;
 
 const SAVE_KEY = 'mazeDodger.v1';
 
@@ -413,16 +431,17 @@ const LEVELS = [
     '#####################'
   ],
   enemies: [
-    { type:'patrol', pts:[[5.5,1.5],[18.0,1.5]],  speed:100, phase:0.50 },
-    { type:'patrol', pts:[[1.6,3.5],[19.4,3.5]],  speed:105, phase:0.15 },
-    { type:'patrol', pts:[[1.6,3.5],[19.4,3.5]],  speed:105, phase:0.65 },
-    { type:'patrol', pts:[[1.6,5.5],[19.4,5.5]],  speed:105, phase:0.40 },
-    { type:'patrol', pts:[[1.6,5.5],[19.4,5.5]],  speed:105, phase:0.90 },
-    { type:'patrol', pts:[[1.6,7.5],[19.4,7.5]],  speed:105, phase:0.10 },
-    { type:'patrol', pts:[[1.6,7.5],[19.4,7.5]],  speed:105, phase:0.60 },
-    { type:'patrol', pts:[[1.6,9.5],[19.4,9.5]],  speed:105, phase:0.35 },
-    { type:'patrol', pts:[[1.6,9.5],[19.4,9.5]],  speed:105, phase:0.85 },
-    { type:'patrol', pts:[[2.0,11.5],[16.5,11.5]],speed:100, phase:0.50 }
+    // Patrols stop ~2.5 tiles short of each lane's ends: safe pockets to wait in.
+    { type:'patrol', pts:[[5.0,1.5],[15.5,1.5]],  speed:95,  phase:0.50 },
+    { type:'patrol', pts:[[3.5,3.5],[17.5,3.5]],  speed:100, phase:0.15 },
+    { type:'patrol', pts:[[3.5,3.5],[17.5,3.5]],  speed:100, phase:0.65 },
+    { type:'patrol', pts:[[3.5,5.5],[17.5,5.5]],  speed:100, phase:0.40 },
+    { type:'patrol', pts:[[3.5,5.5],[17.5,5.5]],  speed:100, phase:0.90 },
+    { type:'patrol', pts:[[3.5,7.5],[17.5,7.5]],  speed:100, phase:0.10 },
+    { type:'patrol', pts:[[3.5,7.5],[17.5,7.5]],  speed:100, phase:0.60 },
+    { type:'patrol', pts:[[3.5,9.5],[17.5,9.5]],  speed:100, phase:0.35 },
+    { type:'patrol', pts:[[3.5,9.5],[17.5,9.5]],  speed:100, phase:0.85 },
+    { type:'patrol', pts:[[3.5,11.5],[16.0,11.5]],speed:95,  phase:0.50 }
   ]
 }
 ];
@@ -555,6 +574,19 @@ const game = {
 function enemySpeedMult() {
   return DIFFICULTY_MULT[settings.difficulty] * Math.pow(RAMP_FACTOR[settings.ramp], game.levelIndex);
 }
+// Hardcore modes: death sends you back to Room 1. 'youcant' also makes walls lethal.
+function isHardcore()  { return settings.difficulty === 'youwont' || settings.difficulty === 'youcant'; }
+function lethalWalls() { return settings.difficulty === 'youcant'; }
+// True if the player square is touching (flush against) any wall tile.
+function touchingWall(cx, cy, half) {
+  const eps = 0.5;
+  const minC = Math.floor((cx - half - eps) / TILE), maxC = Math.floor((cx + half + eps) / TILE);
+  const minR = Math.floor((cy - half - eps) / TILE), maxR = Math.floor((cy + half + eps) / TILE);
+  for (let r = minR; r <= maxR; r++) for (let c = minC; c <= maxC; c++) {
+    if (isWall(c, r)) return true;
+  }
+  return false;
+}
 
 function initLevel(idx) {
   game.levelIndex = idx;
@@ -563,7 +595,7 @@ function initLevel(idx) {
   const mult = enemySpeedMult();
   game.enemies = lvl.enemies.map(spec => {
     const e = Object.assign({}, spec);
-    e.speed = spec.speed * mult;
+    e.speed = Math.min(spec.speed * mult, MAX_ENEMY_SPEED);
     e.r = spec.r || ENEMY_RADIUS;
     if (e.pts) e.path = buildPath(e.pts);
     if (e.type === 'bounce') {
@@ -602,7 +634,10 @@ function enemyPos(e) {
 function update(dt) {
   if (game.state === 'dead') {
     game.stateTimer -= dt * 1000;
-    if (game.stateTimer <= 0) resetRun();
+    if (game.stateTimer <= 0) {
+      if (isHardcore() && game.levelIndex > 0) { initLevel(0); saveProgress(); }
+      else resetRun();
+    }
     return;
   }
   if (game.state === 'complete') {
@@ -626,6 +661,7 @@ function update(dt) {
     const p = moveSquare(game.player.x, game.player.y, PLAYER_SIZE / 2,
                          dx / n * PLAYER_SPEED * dt, dy / n * PLAYER_SPEED * dt);
     game.player.x = p.x; game.player.y = p.y;
+    if (lethalWalls() && touchingWall(p.x, p.y, PLAYER_SIZE / 2)) { die(); return; }
   }
 
   // enemies
@@ -651,7 +687,7 @@ function die() {
   updateHud();
   saveProgress();
   game.state = 'dead';
-  game.stateTimer = DEATH_PAUSE;
+  game.stateTimer = (isHardcore() && game.levelIndex > 0) ? 950 : DEATH_PAUSE;
 }
 function winGame() {
   game.state = 'win';
@@ -719,14 +755,25 @@ function draw() {
   }
   // player
   const half = PLAYER_SIZE / 2;
-  const pcolor = settings.playerColor || T.player;
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.fillRect(game.player.x - half + 2, game.player.y - half + 3, PLAYER_SIZE, PLAYER_SIZE);
-  ctx.fillStyle = pcolor;
-  ctx.fillRect(game.player.x - half, game.player.y - half, PLAYER_SIZE, PLAYER_SIZE);
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillRect(game.player.x - 6, game.player.y - 5, 4, 5);
-  ctx.fillRect(game.player.x + 2, game.player.y - 5, 4, 5);
+  if (playerIconImg) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(game.player.x - half, game.player.y - half, PLAYER_SIZE, PLAYER_SIZE, 5);
+    ctx.clip();
+    ctx.drawImage(playerIconImg, game.player.x - half, game.player.y - half, PLAYER_SIZE, PLAYER_SIZE);
+    ctx.restore();
+    ctx.strokeStyle = settings.playerColor || T.player;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(game.player.x - half, game.player.y - half, PLAYER_SIZE, PLAYER_SIZE);
+  } else {
+    ctx.fillStyle = settings.playerColor || T.player;
+    ctx.fillRect(game.player.x - half, game.player.y - half, PLAYER_SIZE, PLAYER_SIZE);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(game.player.x - 6, game.player.y - 5, 4, 5);
+    ctx.fillRect(game.player.x + 2, game.player.y - 5, 4, 5);
+  }
 
   // state overlays
   if (game.state === 'ready') {
@@ -734,6 +781,7 @@ function draw() {
   } else if (game.state === 'dead') {
     ctx.fillStyle = 'rgba(200,30,30,0.35)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (isHardcore() && game.levelIndex > 0) overlay('BACK TO ROOM 1', 'You knew the deal.');
   } else if (game.state === 'complete') {
     ctx.fillStyle = 'rgba(80,200,110,0.3)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -786,7 +834,50 @@ function togglePause() {
 /* ============================================================
    9. UI, SETTINGS, SAVE
    ============================================================ */
-const settings = { difficulty: 'normal', ramp: 'standard', theme: 'classic', playerColor: null };
+const settings = { difficulty: 'normal', ramp: 'standard', theme: 'classic', playerColor: null, playerIcon: null };
+
+// ---- player icon (uploaded photo) ----
+let playerIconImg = null; // live Image object built from settings.playerIcon dataURL
+function setPlayerIcon(dataURL) {
+  settings.playerIcon = dataURL;
+  playerIconImg = null;
+  if (dataURL) {
+    const img = new Image();
+    img.onload = () => { playerIconImg = img; };
+    img.src = dataURL;
+  }
+  refreshIconUI();
+  saveSettingsOnly();
+}
+function refreshIconUI() {
+  const has = !!settings.playerIcon;
+  document.getElementById('btnRemoveIcon').style.display = has ? '' : 'none';
+  const prev = document.getElementById('iconPreview');
+  prev.style.display = has ? '' : 'none';
+  if (has) {
+    const img = new Image();
+    img.onload = () => prev.getContext('2d').drawImage(img, 0, 0, 32, 32);
+    img.src = settings.playerIcon;
+  }
+}
+function handleIconFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // downscale + center-crop to a 48x48 square so localStorage stays small
+      const s = 48, c = document.createElement('canvas');
+      c.width = s; c.height = s;
+      const side = Math.min(img.width, img.height);
+      c.getContext('2d').drawImage(img,
+        (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, s, s);
+      setPlayerIcon(c.toDataURL('image/png'));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -881,6 +972,12 @@ document.getElementById('btnResetColor').addEventListener('click', () => {
   settings.playerColor = null; saveSettingsOnly();
   document.getElementById('playerColor').value = THEMES[settings.theme].player;
 });
+document.getElementById('btnUploadIcon').addEventListener('click', () =>
+  document.getElementById('iconFile').click());
+document.getElementById('iconFile').addEventListener('change', (e) => {
+  handleIconFile(e.target.files[0]); e.target.value = '';
+});
+document.getElementById('btnRemoveIcon').addEventListener('click', () => setPlayerIcon(null));
 
 // restore saved settings on load
 (function init() {
@@ -891,8 +988,14 @@ document.getElementById('btnResetColor').addEventListener('click', () => {
     document.getElementById('selRamp').value = settings.ramp;
     document.getElementById('selTheme').value = settings.theme;
     if (settings.playerColor) document.getElementById('playerColor').value = settings.playerColor;
+    if (settings.playerIcon) {
+      const img = new Image();
+      img.onload = () => { playerIconImg = img; };
+      img.src = settings.playerIcon;
+    }
   }
   applyTheme();
+  refreshIconUI();
   refreshMenu();
   loadGrid(LEVELS[0]); // so canvas has something if drawn early
 })();
